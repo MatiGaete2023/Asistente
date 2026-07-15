@@ -139,12 +139,8 @@ def _titulo_programa(programa: str) -> str:
 
 # ─── Detección tipo resolución ────────────────────────────────────────────────
 
-_PATRON_PC_IE   = ["pidiendo cuenta a programa respecto al ie",
-                   "pide cuenta al programa",
-                   "proyecto de resolucion pidiendo cuenta a programa"]
-_PATRON_PC_INFO = ["pidiendo cuenta del informe de avance pendiente",
-                   "informe pendiente de entrega",
-                   "proyecto de resolucion pidiendo cuenta del informe"]
+_PATRON_PC_IE   = ["proyecto de resolucion pidiendo cuenta al programa respecto del ingreso efectivo"]
+_PATRON_PC_INFO = ["que se encuentra vencido en rus desde el"]
 _PATRON_NOMENCL = ["aplica nomenclaturas", "regularizar informaticamente",
                    "nomenclaturas a fin de regularizar"]
 

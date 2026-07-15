@@ -18,26 +18,11 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from motor.utilidades import normalizar, detectar_tribunal, get_date, get_int
+from motor.columnas_comunes import ALIAS_TRIBUNAL as ALIASES_TRIBUNAL, ALIAS_PROGRAMA as ALIASES_DERIVACION, ALIAS_NOMBRE as ALIASES_NOMBRE
 
 
 # ── Columnas mínimas por modo ─────────────────────────────────────────────────
 
-COLS_MINIMAS = {
-    "ESPERA":        ["DERIVACION", "TRIBUNAL", "NOMBRE"],
-    "CUMPLIMIENTO":  ["DERIVACION", "TRIBUNAL", "NOMBRE"],
-    "INFORMES":      ["DERIVACION", "TRIBUNAL", "NOMBRE"],
-}
-
-COLS_CRITICAS_VACIAS = {
-    "ESPERA":       ["DERIVACION", "TRIBUNAL", "NOMBRE"],
-    "CUMPLIMIENTO": ["DERIVACION", "TRIBUNAL", "NOMBRE", "FEC.INGRESO EFECTIVO"],
-    "INFORMES":     ["DERIVACION", "TRIBUNAL", "NOMBRE", "FECHA VENCIMIENTO",
-                     "FEC.VENCIMIENTO", "FEC. VENCIMIENTO"],
-}
-
-ALIASES_TRIBUNAL   = ["TRIBUNAL"]
-ALIASES_DERIVACION = ["DERIVACION", "DERIVACIÓN", "PROGRAMA"]
-ALIASES_NOMBRE     = ["NOMBRE", "NOMBRE COMPLETO"]
 ALIASES_NACIMIENTO = ["FEC. NACIMIENTO", "FEC.NACIMIENTO", "FECHA NACIMIENTO", "FEC NACIMIENTO"]
 ALIASES_EDAD       = ["EDAD"]
 

@@ -16,43 +16,21 @@ Formato saludo en TODOS los correos:
 """
 
 import re
-import unicodedata
 from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
 
 from .contactos_programas import CatastroContactos
+from motor.columnas_comunes import (normalizar, detectar_tribunal, titulo_programa, es_dce, obtener_col, ALIAS_RIT, ALIAS_TRIBUNAL, ALIAS_RUT, ALIAS_NOMBRE, ALIAS_PROGRAMA, ALIAS_VENCIMIENTO, ALIAS_ESPERA, TRIBUNAL_DISPLAY)
 
 CC_FIJO = "ucc_concepcion@pjud.cl"
-DIAS_POR_VENCER = 45
+DIAS_POR_VENCER = 30
 
-PATRON_ESPERA = "se remite correo electronico al programa consultando respecto de fecha estimada de ingreso"
+PATRON_ESPERA = "se remite correo electronico al programa consultando respecto de la fecha estimada de ingreso efectivo"
 
 
 # ─── Helpers nombre ───────────────────────────────────────────────────────────
-
-def _formatear_nombre_programa(nombre: str) -> str:
-    """
-    'AFT - MULCHEN'              → 'AFT Mulchén'
-    'RESIDENCIA HOGAR SAN PABLO' → 'Residencia Hogar San Pablo'
-    'RFA – CASTELLON'            → 'RFA Castellón'
-    Regla: tokens ≤4 chars + solo letras + todo mayúscula en posición 0-1 → sigla (MAYÚSCULA).
-    Resto → capitalize().
-    Guiones/rayas aislados se eliminan.
-    """
-    if not nombre:
-        return nombre
-    s = re.sub(r'\s*[-–—]\s*', ' ', nombre.strip())
-    tokens = [t for t in s.split() if t]
-    resultado = []
-    for i, tok in enumerate(tokens):
-        if i < 2 and len(tok) <= 4 and tok.isalpha() and tok.isupper():
-            resultado.append(tok)          # sigla → MAYÚSCULA
-        else:
-            resultado.append(tok.capitalize())
-    return ' '.join(resultado)
-
 
 def _titulo_nombre(nombre: str) -> str:
     """'JUAN PEREZ LOPEZ ()' -> 'Juan Perez Lopez' (limpia parentesis)"""
@@ -61,18 +39,8 @@ def _titulo_nombre(nombre: str) -> str:
     return ' '.join(p.capitalize() for p in s.split())
 
 
-def _normalizar_texto(txt: str) -> str:
-    return unicodedata.normalize("NFKD", str(txt or "")).encode("ASCII", "ignore").decode().lower()
-
 
 # ─── Helpers tribunal ─────────────────────────────────────────────────────────
-
-def _detectar_clave_tribunal(valor: str) -> str | None:
-    v = _normalizar_texto(valor).upper()
-    if "MULCHEN" in v: return "MULCHEN"
-    if "LAJA" in v:    return "LAJA"
-    if "TOME" in v:    return "TOME"
-    return None
 
 
 # ─── Helpers HTML ─────────────────────────────────────────────────────────────
@@ -109,7 +77,7 @@ def _fila_espera(rit, tribunal, rut, nombre, dias_espera) -> str:
     )
 
 def _bloque_programa_tribunal(programa: str, filas_html: str) -> str:
-    prog_fmt = _formatear_nombre_programa(programa)
+    prog_fmt = titulo_programa(programa)
     return (
         f'<p style="margin-top:16px"><strong>{prog_fmt}</strong></p>'
         f'<table style="border-collapse:collapse;font-size:10pt;width:100%;max-width:820px">'
@@ -190,10 +158,10 @@ def _extraer_body(html: str) -> str:
 # ─── Generador principal ──────────────────────────────────────────────────────
 
 class GeneradorCorreos:
-    def __init__(self, config: dict, ruta_catastro: str, contactos_tribunales: dict):
+    def __init__(self, config: dict, ruta_catastro: str, despachador=None):
         self.cc_fijo        = config.get("cc_fijo", CC_FIJO)
         self.catastro       = CatastroContactos(ruta_catastro)
-        self.contactos_trib = contactos_tribunales
+        self._despachador   = despachador or self._crear_borrador
 
     # ── Informes (vencidos / por vencer) ─────────────────────────────────────
 
@@ -206,13 +174,12 @@ class GeneradorCorreos:
         df = df.copy()
         df.columns = [str(c).strip() for c in df.columns]
 
-        col_rit    = self._col(df, ["RIT"])
-        col_trib   = self._col(df, ["TRIBUNAL"])
-        col_rut    = self._col(df, ["RUT", "RUT NNA", "RUT LITIGANTE"])
-        col_nombre = self._col(df, ["NOMBRE", "NOMBRE COMPLETO"])
-        col_prog   = self._col(df, ["DERIVACIÓN", "DERIVACION", "PROGRAMA"])
-        col_fecha  = self._col(df, ["FECHA VENCIMIENTO", "FEC.VENCIMIENTO",
-                                     "FEC. VENCIMIENTO"])
+        col_rit    = self._col(df, ALIAS_RIT)
+        col_trib   = self._col(df, ALIAS_TRIBUNAL)
+        col_rut    = self._col(df, ALIAS_RUT)
+        col_nombre = self._col(df, ALIAS_NOMBRE)
+        col_prog   = self._col(df, ALIAS_PROGRAMA)
+        col_fecha  = self._col(df, ALIAS_VENCIMIENTO)
 
         if not all([col_rit, col_trib, col_nombre, col_prog, col_fecha]):
             faltantes = [n for n, c in [("RIT", col_rit), ("TRIBUNAL", col_trib),
@@ -223,12 +190,12 @@ class GeneradorCorreos:
 
         df[col_fecha] = pd.to_datetime(df[col_fecha], errors="coerce", dayfirst=True)
         hoy = datetime.now().date()
-        df["_clave_trib"] = df[col_trib].apply(_detectar_clave_tribunal)
+        df["_clave_trib"] = df[col_trib].apply(detectar_tribunal)
         df["_dias"] = df[col_fecha].apply(
             lambda f: (f.date() - hoy).days if pd.notna(f) else None)
         df["_tipo"] = df["_dias"].apply(
-            lambda d: "VENCIDO" if d is not None and d <= 0
-                      else ("POR_VENCER" if d is not None and 0 < d <= DIAS_POR_VENCER
+            lambda d: "VENCIDO" if d is not None and d < 0
+                      else ("POR_VENCER" if d is not None and 0 <= d <= DIAS_POR_VENCER
                             else "FUTURO"))
 
         vencidos   = df[df["_tipo"] == "VENCIDO"]
@@ -238,10 +205,6 @@ class GeneradorCorreos:
             self._prog_borrador(g, prog, trib_raw, col_rit, col_trib, col_rut,
                                 col_nombre, col_fecha, "vencidos", resultado)
 
-        for clave, g in vencidos.groupby("_clave_trib"):
-            if clave:
-                self._trib_borrador(g, clave, col_prog, col_rit, col_trib,
-                                    col_rut, col_nombre, col_fecha, resultado)
 
         for (prog, trib_raw), g in por_vencer.groupby([col_prog, col_trib]):
             self._prog_borrador(g, prog, trib_raw, col_rit, col_trib, col_rut,
@@ -262,13 +225,12 @@ class GeneradorCorreos:
         df = df.copy()
         df.columns = [str(c).strip() for c in df.columns]
 
-        col_rit    = self._col(df, ["RIT"])
-        col_trib   = self._col(df, ["TRIBUNAL"])
-        col_rut    = self._col(df, ["RUT", "RUT NNA", "RUT LITIGANTE"])
-        col_nombre = self._col(df, ["NOMBRE", "NOMBRE COMPLETO"])
-        col_prog   = self._col(df, ["DERIVACIÓN", "DERIVACION", "PROGRAMA"])
-        col_espera = self._col(df, ["T ESPERA", "T_ESPERA", "DIAS_ESPERA",
-                                     "DÍAS DE ESPERA", "DIAS DE ESPERA", "TESPERA"])
+        col_rit    = self._col(df, ALIAS_RIT)
+        col_trib   = self._col(df, ALIAS_TRIBUNAL)
+        col_rut    = self._col(df, ALIAS_RUT)
+        col_nombre = self._col(df, ALIAS_NOMBRE)
+        col_prog   = self._col(df, ALIAS_PROGRAMA)
+        col_espera = self._col(df, ALIAS_ESPERA)
         col_obs    = self._col(df, ["OBSERVACION", "OBSERVACIÓN"])
 
         faltantes = [n for n, c in [("RIT", col_rit), ("TRIBUNAL", col_trib),
@@ -281,7 +243,7 @@ class GeneradorCorreos:
         # Filtrar por observación
         if col_obs:
             df_filtrado = df[df[col_obs].apply(
-                lambda obs: PATRON_ESPERA in _normalizar_texto(obs)
+                lambda obs: PATRON_ESPERA in normalizar(obs)
             )].copy()
         else:
             df_filtrado = df.copy()
@@ -301,7 +263,7 @@ class GeneradorCorreos:
                     resultado["grupos_sin_contacto"].append(msg)
                 continue
 
-            nombre_prog_fmt = _formatear_nombre_programa(contacto["nombre"])
+            nombre_prog_fmt = titulo_programa(contacto["nombre"])
             filas_html = ""
             for _, row in grupo.iterrows():
                 rut = str(row[col_rut]) if col_rut and col_rut in row.index else "---"
@@ -313,18 +275,13 @@ class GeneradorCorreos:
             cuerpo = _cargar_plantilla(
                 "correo_programa_espera.html",
                 NOMBRE_PROGRAMA=nombre_prog_fmt,
-                TRIBUNAL=str(trib_raw).strip(),
+                TRIBUNAL=TRIBUNAL_DISPLAY.get(detectar_tribunal(trib_raw), str(trib_raw).strip()),
                 FILAS=filas_html,
             )
-            asunto = f"Lista de espera — {nombre_prog_fmt} / {str(trib_raw).strip()}"
+            asunto = f"Lista de espera — {nombre_prog_fmt} / {TRIBUNAL_DISPLAY.get(detectar_tribunal(trib_raw), str(trib_raw).strip())}"
 
             try:
-                _crear_borrador_outlook(
-                    para=[contacto["mail"]],
-                    cc=[self.cc_fijo],
-                    asunto=asunto,
-                    cuerpo_html=cuerpo,
-                )
+                self._despachador({"para":[contacto["mail"]], "cc":[self.cc_fijo], "asunto":asunto, "cuerpo_html":cuerpo, "n_registros":len(grupo)})
                 resultado["borradores_creados"] += 1
                 resultado["detalle"].append(
                     f"✓ [ESPERA] {nombre_prog_fmt} / {str(trib_raw).strip()} "
@@ -346,7 +303,7 @@ class GeneradorCorreos:
                 resultado["grupos_sin_contacto"].append(msg)
             return
 
-        nombre_prog_fmt = _formatear_nombre_programa(contacto["nombre"])
+        nombre_prog_fmt = titulo_programa(contacto["nombre"])
         filas_html = ""
         for _, row in grupo.iterrows():
             rut = str(row[col_rut]) if col_rut and col_rut in row.index else "---"
@@ -356,13 +313,17 @@ class GeneradorCorreos:
         plantilla = ("correo_programa_vencidos.html" if tipo == "vencidos"
                      else "correo_programa_por_vencer.html")
         asunto_txt = "vencidos" if tipo == "vencidos" else "por vencer"
-        asunto = f"Informes de avance {asunto_txt} — {nombre_prog_fmt} / {str(trib_raw).strip()}"
+        clave = detectar_tribunal(trib_raw)
+        trib_fmt = TRIBUNAL_DISPLAY.get(clave, str(trib_raw).strip())
+        if clave is None:
+            resultado["errores"].append(f"Tribunal no reconocido: {trib_raw}")
+        etiqueta = "informes diagnósticos" if es_dce(prog) else "informes de avance"
+        asunto = f"{etiqueta.capitalize()} {asunto_txt} — {nombre_prog_fmt} / {trib_fmt}"
 
         cuerpo = _cargar_plantilla(plantilla, NOMBRE_PROGRAMA=nombre_prog_fmt,
-                                    TRIBUNAL=str(trib_raw).strip(), FILAS=filas_html)
+                                    TRIBUNAL=trib_fmt, FILAS=filas_html, ETIQUETA_INFORMES=etiqueta)
         try:
-            _crear_borrador_outlook(para=[contacto["mail"]], cc=[self.cc_fijo],
-                                     asunto=asunto, cuerpo_html=cuerpo)
+            self._despachador({"para":[contacto["mail"]], "cc":[self.cc_fijo], "asunto":asunto, "cuerpo_html":cuerpo, "n_registros":len(grupo)})
             resultado["borradores_creados"] += 1
             resultado["detalle"].append(
                 f"✓ [{tipo.upper()}] {nombre_prog_fmt} / {str(trib_raw).strip()} "
@@ -371,38 +332,13 @@ class GeneradorCorreos:
         except RuntimeError as e:
             resultado["errores"].append(str(e))
 
-    def _trib_borrador(self, grupo_trib, clave_trib, col_prog, col_rit, col_trib,
-                        col_rut, col_nombre, col_fecha, resultado):
-        mails = self.contactos_trib.get(clave_trib, [])
-        if not mails:
-            resultado["errores"].append(f"Sin mails de tribunal: {clave_trib}")
-            return
 
-        bloques = ""
-        for prog, g in grupo_trib.groupby(col_prog):
-            filas = ""
-            for _, row in g.iterrows():
-                rut = str(row[col_rut]) if col_rut and col_rut in row.index else "---"
-                filas += _fila_fecha(str(row[col_rit]), str(row[col_trib]),
-                                     rut, str(row[col_nombre]), row[col_fecha])
-            bloques += _bloque_programa_tribunal(str(prog).strip(), filas)
-
-        nombre_trib = {"LAJA": "Jgdo. L. y G. de Laja",
-                       "MULCHEN": "Jgdo. L. y G. de Mulchén",
-                       "TOME": "Juzgado de Familia Tomé"}.get(clave_trib, clave_trib)
-
-        cuerpo = _cargar_plantilla("correo_tribunal_vencidos.html", BLOQUES_PROGRAMA=bloques)
-        asunto = f"Informes vencidos en RUS — {nombre_trib} ({len(grupo_trib)} registros)"
-
-        try:
-            _crear_borrador_outlook(para=mails, cc=[self.cc_fijo],
-                                     asunto=asunto, cuerpo_html=cuerpo)
-            resultado["borradores_creados"] += 1
-            resultado["detalle"].append(
-                f"✓ [TRIBUNAL] {nombre_trib} → {len(mails)} dest. ({len(grupo_trib)} registros)"
-            )
-        except RuntimeError as e:
-            resultado["errores"].append(str(e))
+    @staticmethod
+    def _crear_borrador(borrador: dict) -> bool:
+        return _crear_borrador_outlook(
+            para=borrador["para"], cc=borrador["cc"],
+            asunto=borrador["asunto"], cuerpo_html=borrador["cuerpo_html"]
+        )
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -415,6 +351,6 @@ class GeneradorCorreos:
     def _col(df: pd.DataFrame, aliases: list[str]) -> str | None:
         for c in df.columns:
             for a in aliases:
-                if _normalizar_texto(c) == _normalizar_texto(a):
+                if normalizar(c) == normalizar(a):
                     return c
         return None

@@ -1,145 +1,61 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-motor/reglas_cumplimiento.py — v8.13
-Textos migrados a motor/textos_observaciones.json (fuente unica de verdad).
-Logica de disparo IDENTICA a v8.12.1 — cero cambios de comportamiento,
-solo el mecanismo de almacenamiento del texto.
-"""
-
 from datetime import datetime
-from .utilidades import (
-    prefijo_observacion, fecha_es, limpiar_nombre, audiencia_suffix,
-    normalizar, es_derivacion_sin_seg, tiene_curador_real,
-    get_int, get_date, proximo_informe,
-    calcular_edad_exacta, dias_para_mayoria, fecha_mayoria
-)
+from .composicion import componer, prefijo, fecha_valida, Incidencias
+from .utilidades import (fecha_es, limpiar_nombre, normalizar, es_derivacion_sin_seg,
+    tiene_curador_real, get_int, calcular_edad_exacta, dias_para_mayoria, fecha_mayoria,
+    titulo_programa, contiene_token)
 from .textos import render
+from .reglas_espera import _complementarias
 
-# Prefijos de programas residenciales — usados por R8 (ficha residencial) y R9 (ficha individual).
-# Excluye AFT, PIE, PAS, PRM, FAE, DCE (no residenciales).
-_PREFIJOS_RESIDENCIAL = ("rta", "rtt", "res", "pee", "rfa", "rppm")
+_RES=('rta','rtt','res','rfa','rva')
+def _d(v): return v.date() if hasattr(v,'date') else v
+def _pn(nombre):
+    n=limpiar_nombre(nombre); return n.split()[0] if n else ''
+def _rit(row, cols): return row.get(cols.get('rit'), '') if cols.get('rit') else ''
 
-
-def _es_residencial(programa_norm: str) -> bool:
-    """True si el programa normalizado empieza con un prefijo residencial."""
-    return programa_norm.startswith(_PREFIJOS_RESIDENCIAL)
-
-
-def generar_observacion_cumplimiento(row, tribunal, cols):
-    obs = []
-
-    programa          = str(row.get(cols.get("programa"),    "")).strip()
-    nombre            = str(row.get(cols.get("nombre"),      "")).strip()
-    dias_para_egresar = get_int(row.get(cols.get("dias_egresar"), None))
-    curador           = str(row.get(cols.get("curador"),     "")).strip()
-    oido              = get_date(row.get(cols.get("oido"),   None))
-    fec_ingreso       = get_date(row.get(cols.get("ingreso"),None))
-    fec_egrso_proy    = get_date(row.get(cols.get("egreso_proy"), None))
-    fec_ficha_res     = get_date(row.get(cols.get("ficha_res"),   None))
-    fec_ficha_ind     = get_date(row.get(cols.get("ficha_ind"),   None))
-    fec_ficha_fae     = get_date(row.get(cols.get("ficha_fae"),   None))
-    fec_nacimiento    = get_date(row.get(cols.get("nacimiento"),  None))
-
-    edad_real     = calcular_edad_exacta(fec_nacimiento) or get_int(row.get(cols.get("edad"), 0)) or 0
-    _ahora        = datetime.now()
-    dias_oido     = (_ahora - oido).days        if oido        else None
-    dias_ingreso  = (_ahora - fec_ingreso).days if fec_ingreso else None
-    dias_ficha_res = (_ahora - fec_ficha_res).days if fec_ficha_res else None
-    dias_ficha_ind = (_ahora - fec_ficha_ind).days if fec_ficha_ind else None
-
-    programa_norm = normalizar(programa)
-    pfx = prefijo_observacion(nombre, programa)
-    aud = audiencia_suffix(row, cols)
-
-    _nombre_limpio = limpiar_nombre(nombre)
-    pnombre = _nombre_limpio.split()[0] if _nombre_limpio else ""
-
-    # R0
-    if es_derivacion_sin_seg(programa):
-        return f"{pfx}{render('CUMPLIMIENTO', 'R0')}{aud}"
-
-    # R1: Mayor de edad
-    if edad_real >= 18:
-        fec_may = fecha_mayoria(fec_nacimiento) if fec_nacimiento else None
-        if pnombre and fec_may:
-            texto = render("CUMPLIMIENTO", "R1_CON_FECHA", PNOMBRE=pnombre, FECHA_MAYORIA=fecha_es(fec_may))
+def generar_observacion_cumplimiento(row, tribunal, cols, fecha_hoja2=None, incidencias=None, fila_excel=None) -> str:
+    incidencias=incidencias or Incidencias(); hoy=datetime.now().date()
+    programa=str(row.get(cols.get('programa'), '')).strip(); nombre=str(row.get(cols.get('nombre'), '')).strip()
+    pfx=prefijo(nombre, programa); pn=_pn(nombre); prog=titulo_programa(programa)
+    if es_derivacion_sin_seg(programa): return componer(pfx,[render('COMUN','NO_SEGUIMIENTO', PROGRAMA=prog)])
+    fn=fecha_valida(row.get(cols.get('nacimiento'))) if cols.get('nacimiento') else None
+    if fn and (calcular_edad_exacta(fn) or 0) >= 18:
+        return componer(pfx,[render('COMUN','MAYORIA_EDAD', PNOMBRE=pn, FECHA_MAYORIA=fecha_es(fecha_mayoria(fn)))] + _complementarias(row, cols))
+    frags=[]; principal=False
+    dm=dias_para_mayoria(fn) if fn else None
+    if dm is not None and 1 <= dm <= 60:
+        frags.append(render('COMUN','PROXIMA_MAYORIA', PNOMBRE=pn, FECHA_MAYORIA=fecha_es(fecha_mayoria(fn))))
+    dc=get_int(row.get(cols.get('dias_cumpl'))) if cols.get('dias_cumpl') else None
+    fing=fecha_valida(row.get(cols.get('ingreso'))) if cols.get('ingreso') else None
+    if dc is not None and 0 <= dc <= 30:
+        if fing: frags.append(render('CUMPLIMIENTO','C03_INGRESO_RECIENTE', PROGRAMA=prog, FECHA_INGRESO=fecha_es(fing))); principal=True
+        else: incidencias.agregar(fila_excel, _rit(row, cols), 'C-03', 'sin fecha de ingreso — regla omitida (G-05)')
+    dpe=get_int(row.get(cols.get('dias_egresar'))) if cols.get('dias_egresar') else None
+    fegr=fecha_valida(row.get(cols.get('egreso_proy'))) if cols.get('egreso_proy') else None
+    vencida=bool(fegr and ((dpe is not None and dpe < 0) or (dc is not None and dc < 0)))
+    if vencida: frags.append(render('CUMPLIMIENTO','C04_VENCIDA', FECHA_EGRESO_PROYECTADO=fecha_es(fegr))); principal=True
+    elif ((dpe is not None and dpe < 0) or (dc is not None and dc < 0)) and not fegr:
+        incidencias.agregar(fila_excel, _rit(row, cols), 'C-04', 'sin egreso proyectado (G-05)')
+    c05=bool(fegr and dpe is not None and 0 <= dpe <= 45 and not vencida)
+    if c05:
+        frags.append(render('CUMPLIMIENTO','C05_VENCE_HOY' if dpe == 0 else 'C05_POR_VENCER', FECHA_EGRESO_PROYECTADO=fecha_es(fegr))); principal=True
+    if fecha_hoja2 and not vencida and not c05:
+        frags.append(render('CUMPLIMIENTO','C10_HOJA2', PROGRAMA=prog, FECHA_VENCIMIENTO=fecha_es(fecha_hoja2))); principal=True
+    frags += _complementarias(row, cols)[:2]
+    pnrm=normalizar(programa)
+    fi=fecha_valida(row.get(cols.get('ficha_ind'))) if cols.get('ficha_ind') else None
+    if pnrm.startswith(_RES) and cols.get('ficha_ind'):
+        if not fi: frags.append(render('CUMPLIMIENTO','C07_SIN_FICHA'))
         else:
-            texto = render("CUMPLIMIENTO", "R1_FALLBACK")
-        if aud:
-            texto = texto[:-1]
-        return f"{pfx}{texto}{aud}"
-
-    # R2 — acumulable
-    dias_may = dias_para_mayoria(fec_nacimiento) if fec_nacimiento else None
-    if dias_may is not None and 0 < dias_may <= 60:
-        obs.append(render("CUMPLIMIENTO", "R2_PROXIMA_MAYORIA",
-                           PNOMBRE=pnombre or "[NOMBRE]",
-                           FECHA_MAYORIA=fecha_es(fecha_mayoria(fec_nacimiento))))
-
-    # R3
-    if dias_ingreso is not None and 0 < dias_ingreso <= 30:
-        obs.append(render("CUMPLIMIENTO", "R3_INGRESO_RECIENTE", FECHA_INGRESO=fecha_es(fec_ingreso)))
-
-    # R4
-    vencida = (dias_para_egresar is not None and dias_para_egresar <= 0)
-    if vencida:
-        obs.append(render("CUMPLIMIENTO", "R4_MEDIDA_VENCIDA", FECHA_EGRESO_PROY=fecha_es(fec_egrso_proy)))
-
-    # R5
-    r5 = (dias_para_egresar is not None and 0 < dias_para_egresar <= 45)
-    if r5:
-        obs.append(render("CUMPLIMIENTO", "R5_POR_VENCER", FECHA_EGRESO_PROY=fecha_es(fec_egrso_proy)))
-
-    # R5b
-    if not r5 and not vencida:
-        fi = proximo_informe(
-            fec_ingreso.date() if fec_ingreso and hasattr(fec_ingreso, "date") else None,
-            fec_egrso_proy, tribunal
-        )
-        if fi:
-            obs.append(render("CUMPLIMIENTO", "R5B_PROXIMO_INFORME", FECHA_PROX_INFORME=fecha_es(fi)))
-
-    # R6: columna debe existir Y no contener un RUT real
-    if cols.get("curador") and not tiene_curador_real(curador):
-        obs.append(render("CUMPLIMIENTO", "R6_CURADOR"))
-
-    # R7
-    if dias_oido is not None and 0 < dias_oido <= 45:
-        obs.append(render("CUMPLIMIENTO", "R7_OIDO", FECHA_OIDO=fecha_es(oido)))
-
-    # R8: solo residencias (RTA, RTT, RES, PEE, RFA, RPPM)
-    if (_es_residencial(programa_norm) and cols.get("ficha_res")
-            and dias_ficha_res is not None and dias_ficha_res > 180):
-        obs.append(render("CUMPLIMIENTO", "R8_FICHA_RESIDENCIAL"))
-
-    # R9: solo aplica a residencias (mismos prefijos que R8)
-    if _es_residencial(programa_norm) and cols.get("ficha_ind"):
-        if dias_ficha_ind is not None and dias_ficha_ind > 180:
-            obs.append(render("CUMPLIMIENTO", "R9_FICHA_INDIVIDUAL_VIEJA"))
-        elif dias_ficha_ind is not None and 0 < dias_ficha_ind <= 30:
-            obs.append(render("CUMPLIMIENTO", "R9_FICHA_INDIVIDUAL_RECIENTE", FECHA_FICHA_IND=fecha_es(fec_ficha_ind)))
-
-    # R10
-    if "fae" in programa_norm or "fas" in programa_norm:
-        if cols.get("ficha_fae") and dias_ingreso is not None and dias_ingreso > 120 and not fec_ficha_fae:
-            obs.append(render("CUMPLIMIENTO", "R10_FICHA_FAE", PNOMBRE=pnombre or "[NOMBRE]"))
-
-    if not obs:
-        obs.append(render("CUMPLIMIENTO", "FALLBACK"))
-
-    # BUG-02: cada fragmento termina en '.', audiencia_suffix empieza con '. '
-    base = " ".join(obs)
-    if aud and base.endswith("."):
-        base = base[:-1]
-    return pfx + base + aud
-
-
-def r5_aplica_para_fila(row, cols):
-    dias = get_int(row.get(cols.get("dias_egresar"), None))
-    return dias is not None and 0 < dias <= 45
-
-
-def medida_vencida_para_fila(row, cols):
-    dias = get_int(row.get(cols.get("dias_egresar"), None))
-    return dias is not None and dias <= 0
+            dd=(hoy-_d(fi)).days
+            if dd > 180: frags.append(render('CUMPLIMIENTO','C07_FICHA_ANTIGUA', FECHA_FICHA_INDIVIDUAL=fecha_es(fi)))
+            elif 0 <= dd <= 30: frags.append(render('CUMPLIMIENTO','C07_FICHA_RECIENTE', FECHA_FICHA_INDIVIDUAL=fecha_es(fi)))
+    ffae=fecha_valida(row.get(cols.get('ficha_fae'))) if cols.get('ficha_fae') else None
+    if contiene_token(programa,'fae','fas') and fing and (hoy-_d(fing)).days > 120 and not ffae:
+        frags.append(render('CUMPLIMIENTO','C08_FICHA_FAE', PNOMBRE=pn))
+    # audiencia only
+    comp=_complementarias(row, cols)
+    if len(comp)>2: frags.append(comp[-1])
+    if not principal:
+        return componer(pfx, [render('CUMPLIMIENTO','C09_SIN_OBSERVACIONES')] if not frags else [render('CUMPLIMIENTO','C09_BASE_BREVE')] + frags)
+    return componer(pfx, frags)

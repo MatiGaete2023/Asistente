@@ -117,11 +117,11 @@ def test_ningun_id_huerfano_o_faltante_vs_golden():
     )
 
 
-def test_conteo_total_reglas_es_31():
+def test_conteo_total_textos_es_25():
     """Guard-rail explicito del inventario conocido (F-9: 31 IDs)."""
     data = _cargar()
     total = sum(len(reglas) for modo, reglas in data.items() if modo != "_meta")
-    assert total == 31, f"Se esperaban 31 reglas totales, hay {total}"
+    assert total == 25, f"Se esperaban 31 reglas totales, hay {total}"
 
 
 def test_textos_no_confirmados_documentados():

@@ -1,158 +1,36 @@
 {
-  "_meta": {
-    "proposito": "Fuente unica de verdad para textos de observacion. Editar SOLO este archivo, nunca hardcodear strings en .py. Causa raiz del bug recurrente de deriva textual entre sesiones.",
-    "confirmado_true": "Texto validado explicitamente por el usuario en conversacion, con ejemplo textual o correccion directa",
-    "confirmado_false": "Texto heredado de baseline v7.1 o v8.x, nunca disputado pero tampoco re-confirmado caracter por caracter. Riesgo latente F8 de auditoria 2026-06-11"
+  "_meta": {"version": "v9.0.0", "descripcion": "Textos aprobados Catálogo v2 2026-07-14; 25 entradas confirmadas."},
+  "COMUN": {
+    "NO_SEGUIMIENTO": {"texto": "La derivación {PROGRAMA} no se encuentra sujeta a seguimiento por este Centro.", "confirmado": true, "nota": "Catálogo v2 2026-07-14 — E-01"},
+    "MAYORIA_EDAD": {"texto": "Se hace presente que {PNOMBRE} alcanzó la mayoría de edad el {FECHA_MAYORIA}, se sugiere egresar la medida.", "confirmado": true, "nota": "Catálogo v2 2026-07-14 — E-02 / C-01"},
+    "PROXIMA_MAYORIA": {"texto": "Se hace presente que {PNOMBRE} alcanzará la mayoría de edad el {FECHA_MAYORIA}.", "confirmado": true, "nota": "Catálogo v2 2026-07-14 — E-03 / C-02"},
+    "CURADOR": {"texto": "No registra curador asociado en RUS, se sugiere asociar curador ad litem informáticamente.", "confirmado": true, "nota": "Catálogo v2 2026-07-14 — T-01"},
+    "OIDO": {"texto": "Oído con fecha {FECHA_OIDO}.", "confirmado": true, "nota": "Catálogo v2 2026-07-14 — T-02"},
+    "PROX_AUDIENCIA": {"texto": "Se cita a audiencia para el día {FECHA_AUDIENCIA}.", "confirmado": true, "nota": "Catálogo v2 2026-07-14 — T-03"}
   },
   "ESPERA": {
-    "R0": {
-      "texto": "Este Centro de Seguimiento no realiza seguimiento a esta derivación",
-      "confirmado": true
-    },
-    "R1_CON_FECHA": {
-      "texto": "Se hace presente que {PNOMBRE} alcanzó la mayoría de edad el {FECHA_MAYORIA}, se sugiere egresar la medida.",
-      "confirmado": true
-    },
-    "R1_FALLBACK": {
-      "texto": "Mayor de edad, se sugiere egresar la medida.",
-      "confirmado": true
-    },
-    "R2_PROXIMA_MAYORIA": {
-      "texto": "Se hace presente que {PNOMBRE} alcanzará la mayoría de edad el {FECHA_MAYORIA}",
-      "confirmado": false,
-      "nota": "Umbral 60 dias y redaccion heredados v8.12.1, nunca reconfirmados"
-    },
-    "INGRESO_ORDENADO_CON_RESOLUCION": {
-      "texto": "Medida revisada, a la espera de ingreso efectivo. Se hace presente que se ordena ingreso a {PROGRAMA} con fecha {FECHA_RESOLUCION}",
-      "confirmado": true,
-      "nota": "Texto literal entregado por el usuario 2026-06-11 (sin punto final, tal como lo escribio). Reemplaza R3_DCE_CORTO_SIN_RESOLUCION y FALLBACK_SIN_RESOLUCION cuando FEC. RESOLUCION esta presente. Aplica a: DCE con espera <30d, y a cualquier caso sin otra regla disparada, siempre que exista fecha de resolucion"
-    },
-    "R3_DCE_CORTO_SIN_RESOLUCION": {
-      "texto": "Medida en espera desde hace {DIAS_ESPERA} días",
-      "confirmado": false,
-      "nota": "Texto v7.1 explicitamente rechazado por el usuario 2026-06-11 en los casos donde SI habia FEC. RESOLUCION. Se mantiene como fallback residual solo para filas sin fecha de resolucion. Pendiente definir redaccion final para este caso residual"
-    },
-    "R4_DCE_LARGO": {
-      "texto": "Medida revisada, a la espera de ingreso efectivo. Se deja constancia que se remite proyecto de resolución pidiendo cuenta a programa respecto al IE. Igualmente, en gestión independiente de este Centro, se remite correo electrónico al programa consultando respecto de fecha estimada de ingreso",
-      "confirmado": false,
-      "nota": "Heredado v7.1, no disputado explicitamente en produccion pero tampoco reconfirmado"
-    },
-    "R5_MULCHEN": {
-      "texto": "Medida revisada, a la espera de ingreso efectivo. Se remite proyecto de resolución pidiendo cuenta a programa respecto al IE. Se remite correo electrónico al programa consultando respecto de fecha estimada de ingreso",
-      "confirmado": false,
-      "nota": "Heredado v7.1, no disputado explicitamente pero tampoco reconfirmado"
-    },
-    "R6_LAJA_TOME": {
-      "texto": "Medida revisada, a la espera de ingreso efectivo. Se deja constancia que se remite proyecto de resolución pidiendo cuenta a programa respecto al IE. Igualmente, en gestión independiente de este Centro, se remite correo electrónico al programa consultando respecto de fecha estimada de ingreso",
-      "confirmado": false,
-      "nota": "Heredado v7.1, no disputado explicitamente pero tampoco reconfirmado"
-    },
-    "R7_CURADOR": {
-      "texto": "No registra curador asociado en RUS, se sugiere asociar curador ad litem informáticamente",
-      "confirmado": true
-    },
-    "R8_OIDO": {
-      "texto": "Audiencia de oído revisada",
-      "confirmado": true
-    },
-    "FALLBACK_SIN_RESOLUCION": {
-      "texto": "Medida revisada, a la espera de ingreso efectivo a {PROGRAMA}",
-      "confirmado": false,
-      "nota": "Heredado v7.1. Fallback residual solo cuando no hay FEC. RESOLUCION disponible"
-    }
+    "E04_RESOLUCION_RECIENTE": {"texto": "Medida revisada, a la espera de ingreso efectivo. Se hace presente que el Tribunal ordenó el ingreso efectivo al programa {PROGRAMA} con fecha {FECHA_RESOLUCION}. (Observación administrativa, no requiere acción/respuesta del Tribunal).", "confirmado": true, "nota": "Catálogo v2 2026-07-14 — E-04"},
+    "E05_SOLO_CORREO": {"texto": "Medida revisada, a la espera de ingreso efectivo. Se remite correo electrónico al programa consultando respecto de la fecha estimada de ingreso efectivo.", "confirmado": true, "nota": "Catálogo v2 2026-07-14 — E-05"},
+    "E05_PROYECTO_Y_CORREO": {"texto": "Medida revisada, a la espera de ingreso efectivo. Se remite proyecto de resolución pidiendo cuenta al programa respecto del ingreso efectivo. Igualmente, se remite correo electrónico al programa consultando respecto de la fecha estimada de ingreso efectivo.", "confirmado": true, "nota": "Catálogo v2 2026-07-14 — E-05"},
+    "E06_SIN_RESOLUCION": {"texto": "Medida revisada, a la espera de ingreso efectivo al programa {PROGRAMA}.", "confirmado": true, "nota": "Catálogo v2 2026-07-14 — E-06"}
   },
   "CUMPLIMIENTO": {
-    "R0": {
-      "texto": "Este Centro de Seguimiento no realiza seguimiento a esta derivación",
-      "confirmado": true
-    },
-    "R1_CON_FECHA": {
-      "texto": "Se hace presente que {PNOMBRE} alcanzó la mayoría de edad el {FECHA_MAYORIA}, se sugiere egresar la medida.",
-      "confirmado": true
-    },
-    "R1_FALLBACK": {
-      "texto": "Mayor de edad, se sugiere egresar la medida.",
-      "confirmado": true
-    },
-    "R2_PROXIMA_MAYORIA": {
-      "texto": "Se hace presente que {PNOMBRE} alcanzará la mayoría de edad el {FECHA_MAYORIA}.",
-      "confirmado": false,
-      "nota": "Heredado, nunca reconfirmado caracter por caracter"
-    },
-    "R3_INGRESO_RECIENTE": {
-      "texto": "Medida revisada, ingreso efectivo registrado el día {FECHA_INGRESO}.",
-      "confirmado": false,
-      "nota": "Heredado, nunca reconfirmado"
-    },
-    "R4_MEDIDA_VENCIDA": {
-      "texto": "La medida se visualiza vencida en RUS desde el {FECHA_EGRESO_PROY}.",
-      "confirmado": true,
-      "nota": "Texto literal entregado por el usuario en turno anterior de esta sesion"
-    },
-    "R5_POR_VENCER": {
-      "texto": "Se hace presente que tanto la vigencia de la medida como el próximo informe de avance vencen el día {FECHA_EGRESO_PROY}.",
-      "confirmado": false,
-      "nota": "Heredado, nunca reconfirmado"
-    },
-    "R5B_PROXIMO_INFORME": {
-      "texto": "Medida revisada, se hace presente que el próximo informe de avance vence el {FECHA_PROX_INFORME}.",
-      "confirmado": false,
-      "nota": "Heredado, nunca reconfirmado"
-    },
-    "R6_CURADOR": {
-      "texto": "No registra curador asociado en RUS, se sugiere asociar curador ad litem informáticamente.",
-      "confirmado": true
-    },
-    "R7_OIDO": {
-      "texto": "Oído con fecha {FECHA_OIDO}.",
-      "confirmado": false,
-      "nota": "Heredado, nunca reconfirmado"
-    },
-    "R8_FICHA_RESIDENCIAL": {
-      "texto": "Atendida que la ficha residencial tiene más de seis meses sin actualizar, se sugiere actualizar.",
-      "confirmado": true,
-      "nota": "Filtro de prefijos residenciales confirmado explicitamente v8.11-v8.11.3"
-    },
-    "R9_FICHA_INDIVIDUAL_VIEJA": {
-      "texto": "Atendida que la ficha individual tiene más de seis meses sin actualizar, se sugiere actualizar.",
-      "confirmado": true,
-      "nota": "Filtro de prefijos residenciales confirmado explicitamente v8.11.3"
-    },
-    "R9_FICHA_INDIVIDUAL_RECIENTE": {
-      "texto": "Se hace presente que la ficha individual fue actualizada con fecha {FECHA_FICHA_IND}.",
-      "confirmado": false,
-      "nota": "Sub-rama nunca discutida explicitamente"
-    },
-    "R10_FICHA_FAE": {
-      "texto": "Medida revisada, se hace presente que {PNOMBRE} no tiene ficha FAE, se sugiere confeccionar.",
-      "confirmado": false,
-      "nota": "Heredado, nunca reconfirmado"
-    },
-    "FALLBACK": {
-      "texto": "Medida revisada, sin observaciones.",
-      "confirmado": false
-    },
-    "CRUCE_HOJA2": {
-      "texto": "Medida revisada, se hace presente que el programa {PROGRAMA} deberá remitir informe de avance a más tardar el {FECHA_VENCIMIENTO}.",
-      "confirmado": true,
-      "nota": "Validado explicitamente con datos reales en turnos v8.11.x"
-    }
+    "C03_INGRESO_RECIENTE": {"texto": "Medida revisada. Se hace presente que el ingreso efectivo al programa {PROGRAMA} se registra con fecha {FECHA_INGRESO}.", "confirmado": true, "nota": "Catálogo v2 2026-07-14 — C-03"},
+    "C04_VENCIDA": {"texto": "La medida se visualiza vencida en RUS desde el {FECHA_EGRESO_PROYECTADO}.", "confirmado": true, "nota": "Catálogo v2 2026-07-14 — C-04"},
+    "C05_VENCE_HOY": {"texto": "Se hace presente que la medida se visualiza con vencimiento para el día de hoy, {FECHA_EGRESO_PROYECTADO}.", "confirmado": true, "nota": "Catálogo v2 2026-07-14 — C-05"},
+    "C05_POR_VENCER": {"texto": "Se hace presente que la medida se visualiza próxima a vencer en RUS el {FECHA_EGRESO_PROYECTADO}.", "confirmado": true, "nota": "Catálogo v2 2026-07-14 — C-05"},
+    "C07_SIN_FICHA": {"texto": "No registra ficha individual en RUS, se sugiere confeccionar.", "confirmado": true, "nota": "Catálogo v2 2026-07-14 — C-07"},
+    "C07_FICHA_ANTIGUA": {"texto": "Atendido que la ficha individual registra como última actualización el {FECHA_FICHA_INDIVIDUAL}, superando los 180 días, se sugiere actualizar.", "confirmado": true, "nota": "Catálogo v2 2026-07-14 — C-07"},
+    "C07_FICHA_RECIENTE": {"texto": "Se hace presente que la ficha individual fue actualizada con fecha {FECHA_FICHA_INDIVIDUAL}.", "confirmado": true, "nota": "Catálogo v2 2026-07-14 — C-07"},
+    "C08_FICHA_FAE": {"texto": "Se hace presente que {PNOMBRE} no tiene ficha FAE, se sugiere confeccionar.", "confirmado": true, "nota": "Catálogo v2 2026-07-14 — C-08"},
+    "C09_SIN_OBSERVACIONES": {"texto": "Medida revisada, sin observaciones.", "confirmado": true, "nota": "Catálogo v2 2026-07-14 — C-09"},
+    "C09_BASE_BREVE": {"texto": "Medida revisada.", "confirmado": true, "nota": "Catálogo v2 2026-07-14 — C-09"},
+    "C10_HOJA2": {"texto": "Medida revisada, se hace presente que el programa {PROGRAMA} deberá remitir informe de avance a más tardar el {FECHA_VENCIMIENTO}.", "confirmado": true, "nota": "Catálogo v2 2026-07-14 — C-10"}
   },
   "INFORMES": {
-    "VENCIDO": {
-      "texto": "Se remite correo electrónico al programa {PROGRAMA} a fin de requerir el informe de avance que se encuentra vencido en RUS desde el {FECHA_VENCIMIENTO}.",
-      "confirmado": false,
-      "nota": "Heredado, no discutido en esta sesion"
-    },
-    "POR_VENCER_DCE": {
-      "texto": "Se remite correo electrónico al programa {PROGRAMA} a fin de señalar que el informe diagnóstico ordenado en autos debe ser remitido a más tardar el {FECHA_VENCIMIENTO}.",
-      "confirmado": false,
-      "nota": "Heredado, no discutido en esta sesion"
-    },
-    "POR_VENCER_GENERAL": {
-      "texto": "Se remite correo electrónico al programa {PROGRAMA} a fin de señalar que el próximo informe de avance vence el {FECHA_VENCIMIENTO}.",
-      "confirmado": false,
-      "nota": "Heredado, no discutido en esta sesion"
-    }
+    "I01_VENCIDO_DCE": {"texto": "Se remite correo electrónico al programa {PROGRAMA} a fin de requerir el informe diagnóstico que se encuentra vencido en RUS desde el {FECHA_VENCIMIENTO}.", "confirmado": true, "nota": "Catálogo v2 2026-07-14 — I-01"},
+    "I01_VENCIDO_GENERAL": {"texto": "Se remite correo electrónico al programa {PROGRAMA} a fin de requerir el informe de avance que se encuentra vencido en RUS desde el {FECHA_VENCIMIENTO}.", "confirmado": true, "nota": "Catálogo v2 2026-07-14 — I-01"},
+    "I02_POR_VENCER_DCE": {"texto": "Se remite correo electrónico al programa {PROGRAMA} a fin de señalar que el informe diagnóstico ordenado en autos debe ser remitido a más tardar el {FECHA_VENCIMIENTO}.", "confirmado": true, "nota": "Catálogo v2 2026-07-14 — I-02"},
+    "I02_POR_VENCER_GENERAL": {"texto": "Se remite correo electrónico al programa {PROGRAMA} a fin de señalar que el próximo informe de avance vence el {FECHA_VENCIMIENTO}.", "confirmado": true, "nota": "Catálogo v2 2026-07-14 — I-02"}
   }
 }

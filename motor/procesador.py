@@ -16,19 +16,13 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils.dataframe import dataframe_to_rows   # CLAIM-3
 
-from .utilidades import (
-    normalizar_match, detectar_tribunal, titulo_programa,
-    prefijo_observacion, fecha_es, get_date, audiencia_suffix
-)
+from .utilidades import normalizar_match, detectar_tribunal, get_date
 from .mapeo_columnas import mapear_columnas, mapear_columnas_hoja2
-from .textos import render
+from .composicion import Incidencias
 from .reglas_espera import generar_observacion_espera
-from .reglas_cumplimiento import (
-    generar_observacion_cumplimiento,
-    r5_aplica_para_fila,
-    medida_vencida_para_fila
-)
+from .reglas_cumplimiento import generar_observacion_cumplimiento
 from .reglas_informes import generar_observacion_informes
+from validador.precheck import validar_excel
 
 logger = logging.getLogger(__name__)
 
@@ -75,20 +69,10 @@ def _clave_fila_h1(row, cols):
     return tuple(normalizar_match(row.get(cols[k], "")) for k in keys)
 
 
-def _obs_cruce(row, cols, fecha_venc):
-    programa = str(row.get(cols.get("programa"), "")).strip()
-    nombre   = str(row.get(cols.get("nombre"),   "")).strip()
-    pfx      = prefijo_observacion(nombre, programa)
-    prog_fmt = titulo_programa(programa)
-    aud      = audiencia_suffix(row, cols)
-    obs = render("CUMPLIMIENTO", "CRUCE_HOJA2", PROGRAMA=prog_fmt, FECHA_VENCIMIENTO=fecha_es(fecha_venc))
-    base = obs[:-1] if (aud and obs.endswith(".")) else obs
-    return pfx + base + aud
-
 
 # ── guardado Excel ─────────────────────────────────────────────────────────────
 
-def _guardar_excel(df, modo, ruta, q):
+def _guardar_excel(df, modo, ruta, q, incidencias=None):
     """
     CLAIM-3: dataframe_to_rows en vez de iterrows — 3x más rápido.
     """
@@ -103,6 +87,12 @@ def _guardar_excel(df, modo, ruta, q):
         # CLAIM-3: escritura en bloque
         for r in dataframe_to_rows(df, index=False, header=True):
             ws.append(r)
+
+        if incidencias is not None and len(incidencias):
+            ws_val = wb.create_sheet("VALIDACION")
+            for r in dataframe_to_rows(incidencias.como_dataframe(), index=False, header=True):
+                ws_val.append(r)
+            q.put(("log", f"⚠️ {len(incidencias)} incidencias de validación — ver hoja VALIDACION"))
 
         # Estilos del encabezado (fila 1)
         for c in ws[1]:
@@ -123,30 +113,47 @@ def _guardar_excel(df, modo, ruta, q):
         q.put(("log", f"❌ Error al guardar: {e}"))
         return None
 
+def _prevalidar(df, modo, config, q):
+    resultado = validar_excel(df, modo, ruta_salida_reportes=config.get("ruta_salida_excel"))
+    for a in resultado.get("anomalias_bloqueantes", []):
+        q.put(("log", f"❌ {a['id']}: {a['count']} — {a['descripcion']}"))
+    for a in resultado.get("anomalias_advertencia", []):
+        q.put(("log", f"⚠️ {a['id']}: {a['count']} — {a['descripcion']}"))
+    if resultado.get("ruta_reporte_html"):
+        q.put(("log", f"📋 Reporte validación: {resultado['ruta_reporte_html']}"))
+    return resultado.get("puede_procesar", False)
+
 
 # ── procesadores ──────────────────────────────────────────────────────────────
 
+def _insertar_columnas_salida(df):
+    df = df.drop(columns=[c for c in ["OBSERVACION", "FECHA_OBS", "TT", "CC", "RES"] if c in df.columns])
+    df["OBSERVACION"] = ""
+    pos = df.columns.get_loc("OBSERVACION")
+    df.insert(pos, "FECHA_OBS", datetime.now().strftime("%d/%m/%Y"))
+    pos = df.columns.get_loc("OBSERVACION") + 1
+    df.insert(pos, "TT", "")
+    df.insert(pos + 1, "CC", "")
+    df.insert(pos + 2, "RES", "")
+    return df
+
+
 def _calcular_simple(df, cols, fn_regla):
-    """
-    Calcula el DataFrame con columna OBSERVACION para ESPERA/INFORMES,
-    SIN guardar a disco. Reutilizado por _procesar_simple (que sí guarda)
-    y por calcular_preview() (vista previa GUI — S3, no escribe archivo).
-    """
+    incidencias = Incidencias()
     col_trib = cols.get("tribunal")
-    if "OBSERVACION" in df.columns:
-        df = df.drop(columns=["OBSERVACION"])
 
     def aplicar(row):
         try:
-            trib = detectar_tribunal(str(row.get(col_trib, ""))) or "LAJA"
-            return fn_regla(row, trib, cols)
+            trib = detectar_tribunal(str(row.get(col_trib, ""))) if col_trib else None
+            if trib is None:
+                incidencias.agregar(row.name + 2, row.get(cols.get("rit"), "") if cols.get("rit") else "", "G-06", "tribunal no reconocido")
+            return fn_regla(row, trib, cols, incidencias=incidencias, fila_excel=row.name + 2)
         except Exception as e:
             return f"ERROR: {e}"
 
-    df_r = df.copy()
-    df_r["OBSERVACION"] = df_r.apply(aplicar, axis=1)
-    return df_r
-
+    df_r = _insertar_columnas_salida(df.copy())
+    df_r["OBSERVACION"] = df.apply(aplicar, axis=1)
+    return df_r, incidencias
 
 def _procesar_simple(df, modo, fn_regla, config, q):
     """Procesador genérico para ESPERA e INFORMES."""
@@ -158,8 +165,8 @@ def _procesar_simple(df, modo, fn_regla, config, q):
         q.put(("done", f"❌ {modo} cancelado: columnas no encontradas."))
         return
 
-    df_r = _calcular_simple(df, cols, fn_regla)
-    nombre = _guardar_excel(df_r, modo, config["ruta_salida_excel"], q)
+    df_r, incidencias = _calcular_simple(df, cols, fn_regla)
+    nombre = _guardar_excel(df_r, modo, config["ruta_salida_excel"], q, incidencias)
     if nombre:
         q.put(("done", f"{modo} completado.\n{len(df_r)} casos.\nArchivo: {nombre}"))
     else:
@@ -167,34 +174,23 @@ def _procesar_simple(df, modo, fn_regla, config, q):
 
 
 def _calcular_cumplimiento(df_h1, cols, indice):
-    """
-    Calcula el DataFrame con columna OBSERVACION para CUMPLIMIENTO,
-    incluyendo el cruce con Hoja2 (indice), SIN guardar a disco.
-    Reutilizado por _procesar_cumplimiento (que sí guarda) y por
-    calcular_preview() (vista previa GUI — S3, no escribe archivo).
-    """
+    incidencias = Incidencias()
     col_trib = cols.get("tribunal")
-    if "OBSERVACION" in df_h1.columns:
-        df_h1 = df_h1.drop(columns=["OBSERVACION"])
 
     def aplicar(row):
         try:
-            trib = detectar_tribunal(str(row.get(col_trib, ""))) or "LAJA"
-            obs  = generar_observacion_cumplimiento(row, trib, cols)
-            if (indice
-                    and not medida_vencida_para_fila(row, cols)
-                    and not r5_aplica_para_fila(row, cols)):
-                clave = _clave_fila_h1(row, cols)
-                if clave and clave in indice:
-                    obs = _obs_cruce(row, cols, indice[clave])
-            return obs
+            trib = detectar_tribunal(str(row.get(col_trib, ""))) if col_trib else None
+            if trib is None:
+                incidencias.agregar(row.name + 2, row.get(cols.get("rit"), "") if cols.get("rit") else "", "G-06", "tribunal no reconocido")
+            clave = _clave_fila_h1(row, cols)
+            fecha_h2 = indice.get(clave) if clave and indice else None
+            return generar_observacion_cumplimiento(row, trib, cols, fecha_hoja2=fecha_h2, incidencias=incidencias, fila_excel=row.name + 2)
         except Exception as e:
             return f"ERROR: {e}"
 
-    df_r = df_h1.copy()
-    df_r["OBSERVACION"] = df_r.apply(aplicar, axis=1)
-    return df_r
-
+    df_r = _insertar_columnas_salida(df_h1.copy())
+    df_r["OBSERVACION"] = df_h1.apply(aplicar, axis=1)
+    return df_r, incidencias
 
 def _procesar_cumplimiento(df_h1, df_h2, config, q):
     cols     = mapear_columnas(df_h1, "CUMPLIMIENTO")
@@ -211,9 +207,10 @@ def _procesar_cumplimiento(df_h1, df_h2, config, q):
         q.put(("log", f"📋 Hoja2: {len(indice)} registros con fecha futura"))
     else:
         q.put(("log", "ℹ️  Sin Hoja2 — cruce desactivado"))
+        q.put(("warn_hoja2", "Sin Hoja2 utilizable: HOY no se generará NINGUNA observación de próximo informe (C-10). Verifica el archivo."))
 
-    df_r = _calcular_cumplimiento(df_h1, cols, indice)
-    nombre = _guardar_excel(df_r, "CUMPLIMIENTO", config["ruta_salida_excel"], q)
+    df_r, incidencias = _calcular_cumplimiento(df_h1, cols, indice)
+    nombre = _guardar_excel(df_r, "CUMPLIMIENTO", config["ruta_salida_excel"], q, incidencias)
     if nombre:
         q.put(("done", f"CUMPLIMIENTO completado.\n{len(df_r)} casos.\nArchivo: {nombre}"))
     else:
@@ -254,6 +251,8 @@ def procesar(df_o_path, modo, config, q):
                         q.put(("log", f"⚠️  No se pudo cargar Hoja2: {e}"))
 
                 q.put(("log", f"✓ {len(df_h1)} filas CUMPLIMIENTO"))
+                if not _prevalidar(df_h1, "CUMPLIMIENTO", config, q):
+                    q.put(("done", "❌ CUMPLIMIENTO cancelado por validación.")); return
                 _procesar_cumplimiento(df_h1, df_h2, config, q)
             except Exception as e:
                 q.put(("log", f"❌ Error cargando archivo: {e}"))
@@ -261,7 +260,10 @@ def procesar(df_o_path, modo, config, q):
         else:
             df = df_o_path
             df.columns = [str(x).strip() for x in df.columns]
-            _procesar_cumplimiento(df.dropna(how="all").fillna(""), None, config, q)
+            df = df.dropna(how="all").fillna("")
+            if not _prevalidar(df, "CUMPLIMIENTO", config, q):
+                q.put(("done", "❌ CUMPLIMIENTO cancelado por validación.")); return
+            _procesar_cumplimiento(df, None, config, q)
 
     elif modo in ("ESPERA", "INFORMES"):
         fn = generar_observacion_espera if modo == "ESPERA" else generar_observacion_informes
@@ -270,6 +272,8 @@ def procesar(df_o_path, modo, config, q):
                   if isinstance(df_o_path, (str, Path))
                   else df_o_path.dropna(how="all").fillna(""))
             q.put(("log", f"✓ {len(df)} filas {modo}"))
+            if not _prevalidar(df, modo, config, q):
+                q.put(("done", f"❌ {modo} cancelado por validación.")); return
             _procesar_simple(df, modo, fn, config, q)
         except Exception as e:
             q.put(("log", f"❌ Error cargando archivo: {e}"))
@@ -326,7 +330,7 @@ def calcular_preview(df_o_path, modo):
             if df_h2 is not None:
                 indice = _construir_indice_hoja2(df_h2, mapear_columnas_hoja2(df_h2))
 
-            df_r = _calcular_cumplimiento(df_h1, cols, indice)
+            df_r, _inc = _calcular_cumplimiento(df_h1, cols, indice)
             return df_r, None
 
         elif modo in ("ESPERA", "INFORMES"):
@@ -338,7 +342,7 @@ def calcular_preview(df_o_path, modo):
             if not cols.get("programa") or not cols.get("tribunal"):
                 return None, "Columnas DERIVACION o TRIBUNAL no encontradas"
 
-            df_r = _calcular_simple(df, cols, fn)
+            df_r, _inc = _calcular_simple(df, cols, fn)
             return df_r, None
 
         else:
