@@ -288,7 +288,7 @@ def test_exportacion_no_convierte_texto_en_formula(tmp_path):
         Cola(),
     )
     libro = load_workbook(tmp_path / nombre, data_only=False)
-    for celda, original in zip(libro["PRUEBA"]["A2:A6"], valores):
+    for celda, original in zip(libro["PRUEBA"]["A2:A6"], valores, strict=True):
         celda = celda[0]
         # El texto se conserva EXACTO (sin prefijos visibles que corrompan
         # placeholders como '---') y nunca queda como fórmula ejecutable.
@@ -344,3 +344,40 @@ def test_validador_de_archivo_rechaza_tipo_tamano_y_xlsx_falso(tmp_path):
     falso.write_text("no es zip", encoding="utf-8")
     with pytest.raises(ValueError, match="XLSX/XLSM"):
         validar_archivo_excel(falso)
+
+
+def test_validar_archivo_excel_rechaza_dimensiones_excesivas(tmp_path):
+    from openpyxl import Workbook
+
+    from motor.utilidades import validar_archivo_excel
+
+    ruta = tmp_path / "grande.xlsx"
+    wb = Workbook()
+    ws = wb.active
+    ws.cell(row=4, column=1, value="ok")
+    wb.save(ruta)
+
+    assert validar_archivo_excel(ruta, max_filas=10, max_columnas=10) == ruta
+
+    ws.cell(row=11, column=1, value="demasiadas filas")
+    wb.save(ruta)
+    with pytest.raises(ValueError, match="supera el máximo permitido"):
+        validar_archivo_excel(ruta, max_filas=10, max_columnas=10)
+
+
+def test_exportar_borrador_html_escapa_metadatos_y_es_atomico(tmp_path):
+    from comunicaciones.generador_correos import exportar_borrador_html
+
+    assert exportar_borrador_html({
+        "para": ["programa@example.invalid"],
+        "cc": ["ucc@example.invalid"],
+        "asunto": "<Asunto crítico>",
+        "cuerpo_html": "<p>Cuerpo autorizado</p>",
+    }, str(tmp_path))
+
+    archivos = list(tmp_path.glob("*.html"))
+    assert len(archivos) == 1
+    contenido = archivos[0].read_text(encoding="utf-8")
+    assert "&lt;Asunto crítico&gt;" in contenido
+    assert "<p>Cuerpo autorizado</p>" in contenido
+    assert not list(tmp_path.glob("*.tmp.html"))

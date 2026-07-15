@@ -44,7 +44,7 @@ def _construir_indice_hoja2(df_h2, cols_h2):
     if any(c is None for c in cols_v):
         # Hoja2 malformada degrada a "sin cruce" con aviso fuerte (Mejoras §2.2);
         # nunca aborta el procesamiento completo de CUMPLIMIENTO.
-        faltantes = [campo for campo, columna in zip(campos, cols_v) if columna is None]
+        faltantes = [campo for campo, columna in zip(campos, cols_v, strict=True) if columna is None]
         logger.warning("Hoja2: faltan columnas (%s) — cruce desactivado", ", ".join(faltantes))
         return {}
     col_rit, col_rut, col_nom, col_tri, col_prog, col_venc = cols_v

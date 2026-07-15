@@ -18,6 +18,9 @@ dependencies = [
   "pywin32>=305; sys_platform == 'win32'",
 ]
 
+[project.scripts]
+csmp-rus = "cli:main"
+
 [project.gui-scripts]
 csmp-asistente-rus = "gui.app:main"
 
@@ -29,8 +32,12 @@ dev = [
   "mypy>=1.14,<2",
   "bandit>=1.8,<2",
   "pip-audit>=2.7,<3",
+  "time-machine>=2.16,<3",
   "pyinstaller>=6.11,<7",
 ]
+
+[tool.setuptools]
+py-modules = ["cli"]
 
 [tool.setuptools.packages.find]
 include = ["motor*", "gui*", "comunicaciones*", "resoluciones*", "validador*", "logs*"]

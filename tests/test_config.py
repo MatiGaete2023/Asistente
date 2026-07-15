@@ -24,3 +24,14 @@ def test_config_rechaza_tipos_invalidos(tmp_path):
     ruta.write_text(json.dumps({"dias_retencion_logs": "noventa"}), encoding="utf-8")
     with pytest.raises(ValueError, match="entero"):
         _cargar_json(ruta, DEFAULT_CONFIG)
+
+
+def test_cli_help_basico():
+    from cli import construir_parser
+
+    parser = construir_parser()
+    ayuda = parser.format_help()
+    assert "procesar" in ayuda
+    assert "preview" in ayuda
+    assert "correos" in ayuda
+    assert "resoluciones" in ayuda

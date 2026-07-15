@@ -50,3 +50,20 @@ def test_valor_operativo_invalido_bloquea():
     resultado = validar_excel(df, "INFORMES")
     ids = {item["id"] for item in resultado["anomalias_bloqueantes"]}
     assert "A10" in ids
+
+
+def test_rotacion_reportes_validacion_elimina_solo_patron_antiguo(tmp_path):
+    from validador.reporte import rotar_reportes_validacion
+
+    antiguo = tmp_path / "validacion_INFORMES_20000101_000000_000001.html"
+    reciente = tmp_path / f"validacion_INFORMES_{datetime.now():%Y%m%d}_000000_000001.html"
+    ajeno = tmp_path / "validacion_manual.html"
+    antiguo.write_text("old", encoding="utf-8")
+    reciente.write_text("new", encoding="utf-8")
+    ajeno.write_text("manual", encoding="utf-8")
+
+    rotar_reportes_validacion(str(tmp_path), dias=90)
+
+    assert not antiguo.exists()
+    assert reciente.exists()
+    assert ajeno.exists()

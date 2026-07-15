@@ -4,7 +4,7 @@ Generador de reportes de validación.
 Produce: consola (texto) + archivo HTML autocontenido.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from html import escape
 import os
 import re
@@ -105,6 +105,25 @@ def _seccion_anomalias(anomalias: list) -> str:
     return html
 
 
+def rotar_reportes_validacion(ruta_salida: str, *, dias: int = 90) -> None:
+    """Elimina reportes de validación generados por la app más antiguos que ``dias``."""
+    directorio = Path(ruta_salida).expanduser()
+    if not directorio.exists():
+        return
+    umbral = datetime.now() - timedelta(days=dias)
+    patron = re.compile(r"^validacion_.+_(\d{8})_\d{6}_\d+\.html$")
+    for archivo in directorio.glob("validacion_*.html"):
+        match = patron.match(archivo.name)
+        if not match:
+            continue
+        try:
+            fecha = datetime.strptime(match.group(1), "%Y%m%d")
+        except ValueError:
+            continue
+        if fecha < umbral:
+            archivo.unlink()
+
+
 def generar_html(resultado: dict, ruta_salida: str) -> str:
     """
     Genera reporte HTML en ruta_salida.
@@ -197,6 +216,7 @@ def generar_html(resultado: dict, ruta_salida: str) -> str:
 </html>"""
 
     Path(ruta_salida).mkdir(parents=True, exist_ok=True)
+    rotar_reportes_validacion(ruta_salida)
     modo_archivo = re.sub(r"[^A-Za-z0-9_-]+", "_", modo_original).strip("_")
     modo_archivo = modo_archivo or "DESCONOCIDO"
     nombre = f"validacion_{modo_archivo}_{datetime.now():%Y%m%d_%H%M%S_%f}.html"

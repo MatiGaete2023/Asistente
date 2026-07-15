@@ -32,7 +32,7 @@ except ImportError:
     _r = tk.Tk(); _r.withdraw()
     messagebox.showerror("Dependencia faltante",
         "No se encontró pandas.\nEjecuta: pip install pandas openpyxl xlrd python-dateutil")
-    raise SystemExit(1)
+    raise SystemExit(1) from None
 
 try:
     from motor.procesador import procesar, calcular_preview
@@ -47,7 +47,7 @@ except ImportError as e:
     _r = tk.Tk(); _r.withdraw()
     messagebox.showerror("Error de instalación",
         f"No se pudo cargar el motor:\n{e}\n\nEjecuta desde la carpeta raíz o usa main.py.")
-    raise SystemExit(1)
+    raise SystemExit(1) from e
 
 from motor.version import VERSION
 MAX_LOG_LINES = 500
@@ -283,6 +283,20 @@ class RUSApp(tk.Tk):
             ttk.Button(inp, text="Buscar…", width=8,
                        command=lambda v=variable: self._pick_file(v)).grid(row=row, column=2)
         inp.columnconfigure(1, weight=1)
+
+        dry = ttk.LabelFrame(parent, text="Diagnóstico / dry-run", padding=8)
+        dry.pack(fill="x", pady=(0, 6))
+        self.correo_dry_run_var = tk.BooleanVar(value=False)
+        self.correo_dry_dir_var = tk.StringVar(value=self.cfg.get("ruta_salida_excel", ""))
+        ttk.Checkbutton(dry, text="Exportar HTML en vez de crear borradores Outlook",
+                        variable=self.correo_dry_run_var).grid(row=0, column=0, columnspan=3, sticky="w")
+        ttk.Label(dry, text="Carpeta HTML:", width=22, anchor="w").grid(row=1, column=0, sticky="w", pady=2)
+        ttk.Entry(dry, textvariable=self.correo_dry_dir_var, width=68).grid(row=1, column=1, padx=5, sticky="ew")
+        ttk.Button(dry, text="Buscar…", width=8,
+                   command=lambda: self._pick_dir(self.correo_dry_dir_var)).grid(row=1, column=2)
+        ttk.Button(dry, text="Verificar entorno Outlook",
+                   command=self._verificar_outlook).grid(row=2, column=0, columnspan=3, sticky="ew", pady=(6, 0))
+        dry.columnconfigure(1, weight=1)
 
         # Botones
         btns = ttk.LabelFrame(parent, text="Tipo de correos", padding=8)
@@ -717,6 +731,19 @@ class RUSApp(tk.Tk):
     def _set_correo_btns(self, state):
         for b in self._correo_btns: b["state"] = state
 
+    def _verificar_outlook(self):
+        try:
+            from comunicaciones.outlook_preflight import verificar_entorno_outlook
+            ok, mensaje = verificar_entorno_outlook()
+        except Exception as e:
+            ok, mensaje = False, str(e)
+        if ok:
+            self._write(self.txt_correos, "✅ " + mensaje, TAG_OK)
+            messagebox.showinfo("Outlook", mensaje)
+        else:
+            self._write(self.txt_correos, "⚠️ " + mensaje, TAG_WARN)
+            messagebox.showwarning("Outlook", mensaje)
+
     def _run_correos_informes(self):
         if self.running:
             return
@@ -728,7 +755,9 @@ class RUSApp(tk.Tk):
         self.running = True
         self.status.set("Generando borradores de correos (informes)…")
         threading.Thread(target=self._worker_correos,
-                         args=(path, "informes", self.cfg.copy()), daemon=True).start()
+                         args=(path, "informes", self.cfg.copy(),
+                               self.correo_dry_run_var.get(),
+                               self.correo_dry_dir_var.get().strip()), daemon=True).start()
 
     def _run_correos_espera(self):
         if self.running:
@@ -741,7 +770,9 @@ class RUSApp(tk.Tk):
         self.running = True
         self.status.set("Generando borradores de correos (espera)…")
         threading.Thread(target=self._worker_correos,
-                         args=(path, "espera", self.cfg.copy()), daemon=True).start()
+                         args=(path, "espera", self.cfg.copy(),
+                               self.correo_dry_run_var.get(),
+                               self.correo_dry_dir_var.get().strip()), daemon=True).start()
 
     def _finish_correos(self, resultado):
         self.running = False
@@ -752,9 +783,9 @@ class RUSApp(tk.Tk):
         else:
             messagebox.showinfo("Correos generados", resultado["resumen"])
 
-    def _worker_correos(self, path, tipo, cfg):
+    def _worker_correos(self, path, tipo, cfg, dry_run=False, dry_dir=""):
         try:
-            from comunicaciones.generador_correos import GeneradorCorreos
+            from comunicaciones.generador_correos import GeneradorCorreos, crear_exportador_html
             self.q.put(("log_correos", f"📂 Cargando {path}…"))
 
             path_validado = validar_archivo_excel(path)
@@ -765,7 +796,13 @@ class RUSApp(tk.Tk):
             self.q.put(("log_correos", f"✓ {len(df)} filas cargadas"))
 
             catastro = str(_ROOT / "comunicaciones" / "catastro_programas.json")
-            gen = GeneradorCorreos(cfg, catastro)
+            despachador = None
+            if dry_run:
+                if not dry_dir:
+                    raise ValueError("Selecciona una carpeta para exportar HTML.")
+                despachador = crear_exportador_html(dry_dir)
+                self.q.put(("log_correos", f"📄 Dry-run HTML en {dry_dir}"))
+            gen = GeneradorCorreos(cfg, catastro, despachador=despachador)
 
             if tipo == "informes":
                 resultado = gen.procesar(df)
@@ -790,7 +827,8 @@ class RUSApp(tk.Tk):
                 sin_contacto=len(sin_ctc),
             )
 
-            resumen = f"Correos ({tipo}) completado.\n{creados} borradores en Outlook Drafts."
+            destino = "archivos HTML" if dry_run else "borradores en Outlook Drafts"
+            resumen = f"Correos ({tipo}) completado.\n{creados} {destino}."
             if errores:
                 resumen += f"\n{len(errores)} advertencias."
             bloqueado = creados == 0 and (errores or sin_ctc)

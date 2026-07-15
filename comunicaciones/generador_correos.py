@@ -18,6 +18,8 @@ import re
 from datetime import datetime
 from html import escape
 from pathlib import Path
+import os
+import uuid
 
 import pandas as pd
 
@@ -122,6 +124,42 @@ def _cargar_plantilla(nombre_archivo: str, **reemplazos) -> str:
 
 # ─── Outlook ──────────────────────────────────────────────────────────────────
 
+def exportar_borrador_html(borrador: dict, ruta_salida: str) -> bool:
+    """Exporta un borrador a HTML para revisión sin Outlook."""
+    destino = Path(ruta_salida).expanduser()
+    destino.mkdir(parents=True, exist_ok=True)
+    asunto = str(borrador.get("asunto", "borrador")).strip() or "borrador"
+    base = re.sub(r"[^A-Za-z0-9áéíóúÁÉÍÓÚñÑüÜ_-]+", "_", asunto).strip("_")
+    base = (base or "borrador")[:80]
+    archivo = destino / f"{base}_{datetime.now():%Y%m%d_%H%M%S_%f}.html"
+    temporal = archivo.with_name(f".{archivo.stem}.{uuid.uuid4().hex}.tmp.html")
+    cuerpo = str(borrador.get("cuerpo_html", ""))
+    encabezado = (
+        "<!DOCTYPE html><html lang=\"es\"><head><meta charset=\"UTF-8\">"
+        f"<title>{escape(asunto, quote=True)}</title></head><body>"
+        f"<p><strong>Para:</strong> {escape('; '.join(borrador.get('para', [])), quote=True)}<br>"
+        f"<strong>CC:</strong> {escape('; '.join(borrador.get('cc', [])), quote=True)}<br>"
+        f"<strong>Asunto:</strong> {escape(asunto, quote=True)}</p><hr>"
+    )
+    try:
+        with open(temporal, "w", encoding="utf-8") as f:
+            f.write(encabezado)
+            f.write(cuerpo)
+            f.write("</body></html>\n")
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temporal, archivo)
+        return True
+    except Exception:
+        temporal.unlink(missing_ok=True)
+        raise
+
+
+def crear_exportador_html(ruta_salida: str):
+    """Retorna un despachador compatible con GeneradorCorreos para dry-run."""
+    return lambda borrador: exportar_borrador_html(borrador, ruta_salida)
+
+
 def _crear_borrador_outlook(para: list[str], cc: list[str],
                              asunto: str, cuerpo_html: str) -> bool:
     pythoncom = None
@@ -170,10 +208,10 @@ def _crear_borrador_outlook(para: list[str], cc: list[str],
         mail.Save()
         guardado = True
         return True
-    except ImportError:
-        raise RuntimeError("pywin32 no disponible. Instala: pip install pywin32")
+    except ImportError as exc:
+        raise RuntimeError("pywin32 no disponible. Instala: pip install pywin32") from exc
     except Exception as e:
-        raise RuntimeError(f"Error creando borrador Outlook: {e}")
+        raise RuntimeError(f"Error creando borrador Outlook: {e}") from e
     finally:
         if inspector is not None:
             try:
