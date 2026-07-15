@@ -83,8 +83,6 @@ pytest tests/ -v
 }
 ```
 
-`contactos.json`: destinatarios por tribunal.
-
 `comunicaciones/catastro_programas.json`: 231 programas con director y mail.
 
 `comunicaciones/aliases_programas.json`: mapeo nombre-RUS → nombre-catastro cuando difieren.
@@ -124,3 +122,13 @@ El .exe queda en `dist/`. Antes de entregar el .exe a producción, verificar man
 Ver `CHANGELOG.md` para historial completo.
 Ver `SNAPSHOT.json` para estado consolidado de proyecto, reglas y pendientes.
 
+
+
+## v9.0.0 — Catálogo CSMP v2
+
+- Motor actualizado a reglas v9 para ESPERA, CUMPLIMIENTO e INFORMES, con textos confirmados en `motor/textos_observaciones.json`.
+- La salida de los tres modos incluye `FECHA_OBS` antes de `OBSERVACION` y `TT`, `CC`, `RES` después; `TT-CC` queda disponible para gestión trimestral.
+- Correos elimina el borrador a tribunal, usa dos flujos separados (informes y espera), normaliza tribunal y distingue DCE como informes diagnósticos.
+- El validador pre-procesamiento queda activo antes de generar Excel de salida.
+
+Instalación de desarrollo: `pip install -r requirements.txt pytest`.

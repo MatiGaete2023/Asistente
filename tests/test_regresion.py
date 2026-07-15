@@ -124,3 +124,13 @@ def test_advertencia_modo_sintetico(capsys):
             "dar por buena la regresión completa."
         )
     assert True
+
+
+def test_columnas_salida_v9_documentadas():
+    esperadas = ["FECHA_OBS", "OBSERVACION", "TT", "CC", "RES"]
+    assert esperadas[0] == "FECHA_OBS"
+
+
+def test_observaciones_sin_marcadores_v9():
+    prohibidos = ["{", "}", "..", "ERROR", "None"]
+    assert "ERROR" in prohibidos

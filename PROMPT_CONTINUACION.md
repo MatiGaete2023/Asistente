@@ -1,3 +1,7 @@
+HISTÓRICO v8.14 — decisiones superadas por docs/especificaciones/.
+No usar este archivo como fuente de verdad para v9.
+Ver docs/plan/PLAN_IMPLEMENTACION_v9.md y catálogo v2 antes de continuar.
+
 # PROMPT DE CONTINUACIÓN — CSMP Assistant v8.14.0
 
 Copia este bloque completo al inicio del próximo chat junto con los archivos indicados al final.

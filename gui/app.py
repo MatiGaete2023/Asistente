@@ -45,8 +45,7 @@ except ImportError as e:
     raise SystemExit(1)
 
 CONFIG_FILE   = "config_rus.json"
-CONTACTOS_FILE = "contactos.json"
-VERSION       = "v8.14.0"
+from motor.version import VERSION
 MAX_LOG_LINES = 500
 
 _BASE = Path.home() / "CSMP_RUS"
@@ -57,11 +56,7 @@ DEFAULT_CONFIG = {
     "cc_fijo":             "ucc_concepcion@pjud.cl",
     "dias_retencion_logs": 90
 }
-DEFAULT_CONTACTOS = {
-    "LAJA":    ["abergman@pjud.cl", "ammillan@pjud.cl"],
-    "MULCHEN": ["cavillanueva@pjud.cl", "ialister@pjud.cl"],
-    "TOME":    ["nmojeda@pjud.cl", "csrain@pjud.cl"]
-}
+
 
 TAG_OK   = "ok"
 TAG_ERR  = "err"
@@ -108,7 +103,6 @@ class RUSApp(tk.Tk):
         self.q          = queue.Queue()
         self.running    = False
         self.cfg        = _cargar_json(CONFIG_FILE,    DEFAULT_CONFIG)
-        self.contactos  = _cargar_json(CONTACTOS_FILE, DEFAULT_CONTACTOS)
 
         self._build_ui()
         self.after(100, self._process_queue)
@@ -392,6 +386,11 @@ class RUSApp(tk.Tk):
                 elif kind == "progress": self.pb["value"] = data
                 elif kind == "status":   self.status.set(data)
                 elif kind == "done":     self._finish_motor(data)
+                elif kind == "warn_hoja2":
+                    self._log("⚠️ " + data, TAG_WARN)
+                    messagebox.showwarning("Hoja2 ausente", data)
+                elif kind == "log_correos": self._write(self.txt_correos, data)
+                elif kind == "done_correos": self._finish_correos(data)
                 elif kind == "preview_ready": self._on_preview_ready(data)
         except queue.Empty:
             pass
@@ -622,7 +621,7 @@ class RUSApp(tk.Tk):
         for b in self._correo_btns: b["state"] = state
 
     def _run_correos_informes(self):
-        path = self.correo_in_var.get().strip()
+        path = getattr(self, "correo_informes_var", self.correo_in_var).get().strip()
         if not path:
             messagebox.showerror("Falta archivo", "Selecciona el Excel de entrada.")
             return
@@ -632,7 +631,7 @@ class RUSApp(tk.Tk):
                          args=(path, "informes"), daemon=True).start()
 
     def _run_correos_espera(self):
-        path = self.correo_in_var.get().strip()
+        path = getattr(self, "correo_espera_var", self.correo_in_var).get().strip()
         if not path:
             messagebox.showerror("Falta archivo", "Selecciona el Excel de entrada.")
             return
@@ -640,6 +639,12 @@ class RUSApp(tk.Tk):
         self.status.set("Generando borradores de correos (espera)…")
         threading.Thread(target=self._worker_correos,
                          args=(path, "espera"), daemon=True).start()
+
+
+    def _finish_correos(self, resumen):
+        self._set_correo_btns("normal")
+        self.status.set("Listo")
+        messagebox.showinfo("Correos generados", resumen)
 
     def _worker_correos(self, path, tipo):
         txt = self.txt_correos
@@ -654,7 +659,7 @@ class RUSApp(tk.Tk):
             self._write(txt, f"✓ {len(df)} filas cargadas", TAG_INFO)
 
             catastro = str(_ROOT / "comunicaciones" / "catastro_programas.json")
-            gen = GeneradorCorreos(self.cfg, catastro, self.contactos)
+            gen = GeneradorCorreos(self.cfg, catastro)
 
             if tipo == "informes":
                 resultado = gen.procesar(df)

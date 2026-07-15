@@ -1,98 +1,63 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-motor/reglas_espera.py — v8.13
-Textos migrados a motor/textos_observaciones.json (fuente unica de verdad).
-Logica de disparo IDENTICA a v8.12.1, salvo:
-  - NUEVO: si FEC. RESOLUCION esta presente, el caso DCE<30d y el fallback
-    generico usan INGRESO_ORDENADO_CON_RESOLUCION (texto literal entregado
-    por el usuario 2026-06-11) en vez del texto v7.1 de dias transcurridos.
-  - Sin FEC. RESOLUCION disponible: se preserva el texto v7.1 como residual.
-Esquema de union: fragmentos SIN punto final, unidos con ". ".
-"""
-
 from datetime import datetime
-from .utilidades import (
-    prefijo_observacion, fecha_es, limpiar_nombre, audiencia_suffix,
-    es_dce, es_derivacion_sin_seg, tiene_curador_real,
-    get_int, get_date, calcular_edad_exacta, dias_para_mayoria, fecha_mayoria
-)
+from .composicion import componer, prefijo, fecha_valida, Incidencias
+from .utilidades import (fecha_es, limpiar_nombre, es_dce, es_derivacion_sin_seg,
+    tiene_curador_real, get_int, calcular_edad_exacta, dias_para_mayoria, fecha_mayoria,
+    titulo_programa)
 from .textos import render
 
 
-def generar_observacion_espera(row, tribunal, cols):
-    obs = []
+def _rit(row, cols): return row.get(cols.get('rit'), '') if cols.get('rit') else ''
+def _pnombre(nombre):
+    n=limpiar_nombre(nombre); return n.split()[0] if n else ''
+def _date(v): return v.date() if hasattr(v,'date') else v
 
-    programa    = str(row.get(cols.get("programa"), "")).strip()
-    nombre      = str(row.get(cols.get("nombre"),   "")).strip()
-    curador     = str(row.get(cols.get("curador"),  "")).strip()
-    dias_espera = get_int(row.get(cols.get("espera"), 0)) or 0
-    oido        = get_date(row.get(cols.get("oido"), None))
-    fec_nacim   = get_date(row.get(cols.get("nacimiento"), None))
-    fec_resol   = get_date(row.get(cols.get("resolucion"), None))
+def _complementarias(row, cols):
+    out=[]; hoy=datetime.now().date()
+    if cols.get('curador') and not tiene_curador_real(row.get(cols.get('curador'))):
+        out.append(render('COMUN','CURADOR'))
+    fo=fecha_valida(row.get(cols.get('oido'))) if cols.get('oido') else None
+    if fo:
+        d=(hoy-_date(fo)).days
+        if 0 <= d <= 45: out.append(render('COMUN','OIDO', FECHA_OIDO=fecha_es(fo)))
+    fa=fecha_valida(row.get(cols.get('prox_aud'))) if cols.get('prox_aud') else None
+    if fa and _date(fa) >= hoy:
+        out.append(render('COMUN','PROX_AUDIENCIA', FECHA_AUDIENCIA=fecha_es(fa)))
+    return out
 
-    edad_real = calcular_edad_exacta(fec_nacim) or get_int(row.get(cols.get("edad"), 0)) or 0
-    dias_oido = (datetime.now() - oido).days if oido else None
-    pfx       = prefijo_observacion(nombre, programa)
-    aud       = audiencia_suffix(row, cols)
 
-    _nombre_limpio = limpiar_nombre(nombre)
-    pnombre = _nombre_limpio.split()[0] if _nombre_limpio else ""
-
-    # R0
+def generar_observacion_espera(row, tribunal, cols, incidencias=None, fila_excel=None) -> str:
+    incidencias = incidencias or Incidencias()
+    programa=str(row.get(cols.get('programa'), '')).strip(); nombre=str(row.get(cols.get('nombre'), '')).strip()
+    pfx=prefijo(nombre, programa); pn=_pnombre(nombre); hoy=datetime.now().date()
     if es_derivacion_sin_seg(programa):
-        return f"{pfx}{render('ESPERA', 'R0')}{aud}"
-
-    # R1: mayor de edad (corte)
-    if edad_real >= 18:
-        fec_may = fecha_mayoria(fec_nacim) if fec_nacim else None
-        if pnombre and fec_may:
-            texto = render("ESPERA", "R1_CON_FECHA", PNOMBRE=pnombre, FECHA_MAYORIA=fecha_es(fec_may))
+        return componer(pfx,[render('COMUN','NO_SEGUIMIENTO', PROGRAMA=titulo_programa(programa))])
+    frags=[]
+    fn=fecha_valida(row.get(cols.get('nacimiento'))) if cols.get('nacimiento') else None
+    if fn and (calcular_edad_exacta(fn) or 0) >= 18:
+        frags.append(render('COMUN','MAYORIA_EDAD', PNOMBRE=pn, FECHA_MAYORIA=fecha_es(fecha_mayoria(fn))))
+        frags += _complementarias(row, cols)
+        return componer(pfx, frags)
+    dm=dias_para_mayoria(fn) if fn else None
+    if dm is not None and 1 <= dm <= 60:
+        frags.append(render('COMUN','PROXIMA_MAYORIA', PNOMBRE=pn, FECHA_MAYORIA=fecha_es(fecha_mayoria(fn))))
+    principal=False
+    fres=fecha_valida(row.get(cols.get('resolucion'))) if cols.get('resolucion') else None
+    if fres:
+        d=(hoy-_date(fres)).days
+        if 0 <= d <= 29:
+            frags.append(render('ESPERA','E04_RESOLUCION_RECIENTE', PROGRAMA=titulo_programa(programa), FECHA_RESOLUCION=fecha_es(fres))); principal=True
+    espera=get_int(row.get(cols.get('espera'))) or 0
+    if espera >= 30:
+        if es_dce(programa):
+            frags.append(render('ESPERA','E05_SOLO_CORREO')); principal=True
+        elif tribunal in ('LAJA','MULCHEN'):
+            frags.append(render('ESPERA','E05_PROYECTO_Y_CORREO')); principal=True
+        elif tribunal == 'TOME':
+            frags.append(render('ESPERA','E05_PROYECTO_Y_CORREO' if espera >= 60 else 'E05_SOLO_CORREO')); principal=True
         else:
-            texto = render("ESPERA", "R1_FALLBACK")
-        if aud:
-            texto = texto[:-1]
-        return f"{pfx}{texto}{aud}"
-
-    # R2: proximo a mayoria <=60 dias — acumulable
-    dias_may = dias_para_mayoria(fec_nacim) if fec_nacim else None
-    if dias_may is not None and 0 < dias_may <= 60:
-        obs.append(render("ESPERA", "R2_PROXIMA_MAYORIA",
-                           PNOMBRE=pnombre or "[NOMBRE]",
-                           FECHA_MAYORIA=fecha_es(fecha_mayoria(fec_nacim))))
-
-    # R3/R4: DCE
-    if es_dce(programa):
-        if 0 <= dias_espera < 30:
-            if fec_resol:
-                obs.append(render("ESPERA", "INGRESO_ORDENADO_CON_RESOLUCION",
-                                   PROGRAMA=programa, FECHA_RESOLUCION=fecha_es(fec_resol)))
-            else:
-                obs.append(render("ESPERA", "R3_DCE_CORTO_SIN_RESOLUCION", DIAS_ESPERA=dias_espera))
-        elif dias_espera >= 30:
-            obs.append(render("ESPERA", "R4_DCE_LARGO"))
-    else:
-        # R5: Mulchen >=30 dias
-        if tribunal == "MULCHEN" and dias_espera >= 30:
-            obs.append(render("ESPERA", "R5_MULCHEN"))
-        # R6: Laja/Tome >=60 dias
-        elif tribunal in ("LAJA", "TOME") and dias_espera >= 60:
-            obs.append(render("ESPERA", "R6_LAJA_TOME"))
-
-    # R7: curador — columna existe Y sin RUT real
-    if cols.get("curador") and not tiene_curador_real(curador):
-        obs.append(render("ESPERA", "R7_CURADOR"))
-
-    # R8: oido reciente <=45 dias
-    if dias_oido is not None and 0 < dias_oido <= 45:
-        obs.append(render("ESPERA", "R8_OIDO"))
-
-    # Fallback — usa FEC. RESOLUCION si esta disponible, si no texto v7.1 residual
-    if not obs:
-        if fec_resol:
-            obs.append(render("ESPERA", "INGRESO_ORDENADO_CON_RESOLUCION",
-                               PROGRAMA=programa, FECHA_RESOLUCION=fecha_es(fec_resol)))
-        else:
-            obs.append(render("ESPERA", "FALLBACK_SIN_RESOLUCION", PROGRAMA=programa))
-
-    return pfx + ". ".join(obs) + aud
+            incidencias.agregar(fila_excel, _rit(row, cols), 'E-05', 'tribunal no reconocido — regla omitida (G-06)')
+    if not principal:
+        frags.append(render('ESPERA','E06_SIN_RESOLUCION', PROGRAMA=titulo_programa(programa)))
+    frags += _complementarias(row, cols)
+    return componer(pfx, frags)

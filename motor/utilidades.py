@@ -11,7 +11,6 @@ import re
 import unicodedata
 from datetime import datetime
 import pandas as pd
-from dateutil.relativedelta import relativedelta   # CLAIM-1: nivel módulo
 
 _PREPOSICIONES  = {"de", "del", "los", "las", "y", "en", "el", "la", "por", "con", "a"}
 _VALORES_VACIOS = {"", "---", "-", "nan", "nat", "none"}
@@ -147,6 +146,13 @@ def detectar_tribunal(valor):
     return None
 
 
+def contiene_token(texto, *tokens) -> bool:
+    """Compara tokens normalizados por palabra completa."""
+    norm = normalizar(texto)
+    palabras = set(re.findall(r"[a-z0-9]+", norm))
+    return any(normalizar(t) in palabras for t in tokens)
+
+
 def es_dce(txt):
     if not txt: return False
     t = normalizar(txt).upper()
@@ -154,9 +160,14 @@ def es_dce(txt):
 
 
 def es_derivacion_sin_seg(txt):
-    if not txt: return False
-    t = normalizar(txt).upper()
-    return any(x in t for x in ("OPD", "DAM", "RED SALUD", "CONSULTA EXTERNA"))
+    if not txt:
+        return False
+    norm = normalizar(txt)
+    patrones = (
+        "opd", "dam", "salud privada", "hospital", "unidad de salud mental",
+        "cesfam", "red salud", "consulta externa", "colegio", "chile crece contigo",
+    )
+    return any(re.search(rf"^{re.escape(p)}(?:\b|$)", norm) for p in patrones)
 
 
 def tiene_curador_real(val) -> bool:
@@ -235,25 +246,3 @@ def get_date(val):
     except (ValueError, TypeError):
         return None
 
-
-def proximo_informe(fec_ingreso, fec_egreso_proy, tribunal):
-    """Próxima fecha de informe dentro de 30 días, o None."""
-    if not fec_ingreso:
-        return None
-    # CLAIM-1: relativedelta ya importado a nivel de módulo
-    meses  = (4, 8, 12, 16, 20) if normalizar(tribunal).upper() == "TOME" else (3, 6, 9, 12, 15, 18)
-    hoy    = datetime.now().date()
-    egreso = (fec_egreso_proy.date()
-              if fec_egreso_proy and hasattr(fec_egreso_proy, "date")
-              else fec_egreso_proy)
-    for m in meses:
-        fi = fec_ingreso + relativedelta(months=m)
-        if isinstance(fi, datetime):
-            fi = fi.date()
-        dias = (fi - hoy).days
-        if not (0 < dias <= 30):
-            continue
-        if egreso and fi == egreso:
-            continue
-        return fi
-    return None

@@ -1,3 +1,12 @@
+
+
+## v9.0.0 — 2026-07-15
+
+- Implementa el catálogo v2 de reglas y textos confirmados v9.
+- Incorpora mejoras aceptadas de correos, salidas Excel, resoluciones, GUI y validador.
+- Corrige hallazgos principales H-01…H-15 de la auditoría v8.14.
+- Pendientes conocidos: plantilla Word PC_IE específica de Tomé puede quedar como faltante; conteo trimestral TT/CC queda como herramienta futura.
+
 # CHANGELOG — CSMP Assistant
 
 ---
