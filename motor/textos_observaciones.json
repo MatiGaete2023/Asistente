@@ -1,0 +1,158 @@
+{
+  "_meta": {
+    "proposito": "Fuente unica de verdad para textos de observacion. Editar SOLO este archivo, nunca hardcodear strings en .py. Causa raiz del bug recurrente de deriva textual entre sesiones.",
+    "confirmado_true": "Texto validado explicitamente por el usuario en conversacion, con ejemplo textual o correccion directa",
+    "confirmado_false": "Texto heredado de baseline v7.1 o v8.x, nunca disputado pero tampoco re-confirmado caracter por caracter. Riesgo latente F8 de auditoria 2026-06-11"
+  },
+  "ESPERA": {
+    "R0": {
+      "texto": "Este Centro de Seguimiento no realiza seguimiento a esta derivación",
+      "confirmado": true
+    },
+    "R1_CON_FECHA": {
+      "texto": "Se hace presente que {PNOMBRE} alcanzó la mayoría de edad el {FECHA_MAYORIA}, se sugiere egresar la medida.",
+      "confirmado": true
+    },
+    "R1_FALLBACK": {
+      "texto": "Mayor de edad, se sugiere egresar la medida.",
+      "confirmado": true
+    },
+    "R2_PROXIMA_MAYORIA": {
+      "texto": "Se hace presente que {PNOMBRE} alcanzará la mayoría de edad el {FECHA_MAYORIA}",
+      "confirmado": false,
+      "nota": "Umbral 60 dias y redaccion heredados v8.12.1, nunca reconfirmados"
+    },
+    "INGRESO_ORDENADO_CON_RESOLUCION": {
+      "texto": "Medida revisada, a la espera de ingreso efectivo. Se hace presente que se ordena ingreso a {PROGRAMA} con fecha {FECHA_RESOLUCION}",
+      "confirmado": true,
+      "nota": "Texto literal entregado por el usuario 2026-06-11 (sin punto final, tal como lo escribio). Reemplaza R3_DCE_CORTO_SIN_RESOLUCION y FALLBACK_SIN_RESOLUCION cuando FEC. RESOLUCION esta presente. Aplica a: DCE con espera <30d, y a cualquier caso sin otra regla disparada, siempre que exista fecha de resolucion"
+    },
+    "R3_DCE_CORTO_SIN_RESOLUCION": {
+      "texto": "Medida en espera desde hace {DIAS_ESPERA} días",
+      "confirmado": false,
+      "nota": "Texto v7.1 explicitamente rechazado por el usuario 2026-06-11 en los casos donde SI habia FEC. RESOLUCION. Se mantiene como fallback residual solo para filas sin fecha de resolucion. Pendiente definir redaccion final para este caso residual"
+    },
+    "R4_DCE_LARGO": {
+      "texto": "Medida revisada, a la espera de ingreso efectivo. Se deja constancia que se remite proyecto de resolución pidiendo cuenta a programa respecto al IE. Igualmente, en gestión independiente de este Centro, se remite correo electrónico al programa consultando respecto de fecha estimada de ingreso",
+      "confirmado": false,
+      "nota": "Heredado v7.1, no disputado explicitamente en produccion pero tampoco reconfirmado"
+    },
+    "R5_MULCHEN": {
+      "texto": "Medida revisada, a la espera de ingreso efectivo. Se remite proyecto de resolución pidiendo cuenta a programa respecto al IE. Se remite correo electrónico al programa consultando respecto de fecha estimada de ingreso",
+      "confirmado": false,
+      "nota": "Heredado v7.1, no disputado explicitamente pero tampoco reconfirmado"
+    },
+    "R6_LAJA_TOME": {
+      "texto": "Medida revisada, a la espera de ingreso efectivo. Se deja constancia que se remite proyecto de resolución pidiendo cuenta a programa respecto al IE. Igualmente, en gestión independiente de este Centro, se remite correo electrónico al programa consultando respecto de fecha estimada de ingreso",
+      "confirmado": false,
+      "nota": "Heredado v7.1, no disputado explicitamente pero tampoco reconfirmado"
+    },
+    "R7_CURADOR": {
+      "texto": "No registra curador asociado en RUS, se sugiere asociar curador ad litem informáticamente",
+      "confirmado": true
+    },
+    "R8_OIDO": {
+      "texto": "Audiencia de oído revisada",
+      "confirmado": true
+    },
+    "FALLBACK_SIN_RESOLUCION": {
+      "texto": "Medida revisada, a la espera de ingreso efectivo a {PROGRAMA}",
+      "confirmado": false,
+      "nota": "Heredado v7.1. Fallback residual solo cuando no hay FEC. RESOLUCION disponible"
+    }
+  },
+  "CUMPLIMIENTO": {
+    "R0": {
+      "texto": "Este Centro de Seguimiento no realiza seguimiento a esta derivación",
+      "confirmado": true
+    },
+    "R1_CON_FECHA": {
+      "texto": "Se hace presente que {PNOMBRE} alcanzó la mayoría de edad el {FECHA_MAYORIA}, se sugiere egresar la medida.",
+      "confirmado": true
+    },
+    "R1_FALLBACK": {
+      "texto": "Mayor de edad, se sugiere egresar la medida.",
+      "confirmado": true
+    },
+    "R2_PROXIMA_MAYORIA": {
+      "texto": "Se hace presente que {PNOMBRE} alcanzará la mayoría de edad el {FECHA_MAYORIA}.",
+      "confirmado": false,
+      "nota": "Heredado, nunca reconfirmado caracter por caracter"
+    },
+    "R3_INGRESO_RECIENTE": {
+      "texto": "Medida revisada, ingreso efectivo registrado el día {FECHA_INGRESO}.",
+      "confirmado": false,
+      "nota": "Heredado, nunca reconfirmado"
+    },
+    "R4_MEDIDA_VENCIDA": {
+      "texto": "La medida se visualiza vencida en RUS desde el {FECHA_EGRESO_PROY}.",
+      "confirmado": true,
+      "nota": "Texto literal entregado por el usuario en turno anterior de esta sesion"
+    },
+    "R5_POR_VENCER": {
+      "texto": "Se hace presente que tanto la vigencia de la medida como el próximo informe de avance vencen el día {FECHA_EGRESO_PROY}.",
+      "confirmado": false,
+      "nota": "Heredado, nunca reconfirmado"
+    },
+    "R5B_PROXIMO_INFORME": {
+      "texto": "Medida revisada, se hace presente que el próximo informe de avance vence el {FECHA_PROX_INFORME}.",
+      "confirmado": false,
+      "nota": "Heredado, nunca reconfirmado"
+    },
+    "R6_CURADOR": {
+      "texto": "No registra curador asociado en RUS, se sugiere asociar curador ad litem informáticamente.",
+      "confirmado": true
+    },
+    "R7_OIDO": {
+      "texto": "Oído con fecha {FECHA_OIDO}.",
+      "confirmado": false,
+      "nota": "Heredado, nunca reconfirmado"
+    },
+    "R8_FICHA_RESIDENCIAL": {
+      "texto": "Atendida que la ficha residencial tiene más de seis meses sin actualizar, se sugiere actualizar.",
+      "confirmado": true,
+      "nota": "Filtro de prefijos residenciales confirmado explicitamente v8.11-v8.11.3"
+    },
+    "R9_FICHA_INDIVIDUAL_VIEJA": {
+      "texto": "Atendida que la ficha individual tiene más de seis meses sin actualizar, se sugiere actualizar.",
+      "confirmado": true,
+      "nota": "Filtro de prefijos residenciales confirmado explicitamente v8.11.3"
+    },
+    "R9_FICHA_INDIVIDUAL_RECIENTE": {
+      "texto": "Se hace presente que la ficha individual fue actualizada con fecha {FECHA_FICHA_IND}.",
+      "confirmado": false,
+      "nota": "Sub-rama nunca discutida explicitamente"
+    },
+    "R10_FICHA_FAE": {
+      "texto": "Medida revisada, se hace presente que {PNOMBRE} no tiene ficha FAE, se sugiere confeccionar.",
+      "confirmado": false,
+      "nota": "Heredado, nunca reconfirmado"
+    },
+    "FALLBACK": {
+      "texto": "Medida revisada, sin observaciones.",
+      "confirmado": false
+    },
+    "CRUCE_HOJA2": {
+      "texto": "Medida revisada, se hace presente que el programa {PROGRAMA} deberá remitir informe de avance a más tardar el {FECHA_VENCIMIENTO}.",
+      "confirmado": true,
+      "nota": "Validado explicitamente con datos reales en turnos v8.11.x"
+    }
+  },
+  "INFORMES": {
+    "VENCIDO": {
+      "texto": "Se remite correo electrónico al programa {PROGRAMA} a fin de requerir el informe de avance que se encuentra vencido en RUS desde el {FECHA_VENCIMIENTO}.",
+      "confirmado": false,
+      "nota": "Heredado, no discutido en esta sesion"
+    },
+    "POR_VENCER_DCE": {
+      "texto": "Se remite correo electrónico al programa {PROGRAMA} a fin de señalar que el informe diagnóstico ordenado en autos debe ser remitido a más tardar el {FECHA_VENCIMIENTO}.",
+      "confirmado": false,
+      "nota": "Heredado, no discutido en esta sesion"
+    },
+    "POR_VENCER_GENERAL": {
+      "texto": "Se remite correo electrónico al programa {PROGRAMA} a fin de señalar que el próximo informe de avance vence el {FECHA_VENCIMIENTO}.",
+      "confirmado": false,
+      "nota": "Heredado, no discutido en esta sesion"
+    }
+  }
+}

@@ -1,0 +1,180 @@
+{
+  "_meta": {
+    "generado_por": "tests/generar_goldens.py",
+    "advertencia": "NO editar a mano. Regenerar solo tras confirmar un texto via flujo S4, con revision explicita.",
+    "placeholders_usados": {
+      "PNOMBRE": "Juan",
+      "FECHA_MAYORIA": "10 de agosto de 2026",
+      "DIAS_ESPERA": "45",
+      "PROGRAMA": "PRM Esperanza",
+      "FECHA_RESOLUCION": "1 de junio de 2026",
+      "FECHA_EGRESO_PROY": "15 de julio de 2026",
+      "FECHA_PROX_INFORME": "20 de septiembre de 2026",
+      "FECHA_INGRESO": "5 de mayo de 2026",
+      "FECHA_OIDO": "12 de junio de 2026",
+      "FECHA_FICHA_IND": "3 de marzo de 2026",
+      "FECHA_VENCIMIENTO": "30 de agosto de 2026"
+    }
+  },
+  "ESPERA": {
+    "R0": {
+      "texto_fuente": "Este Centro de Seguimiento no realiza seguimiento a esta derivación",
+      "texto_renderizado": "Este Centro de Seguimiento no realiza seguimiento a esta derivación",
+      "confirmado": true
+    },
+    "R1_CON_FECHA": {
+      "texto_fuente": "Se hace presente que {PNOMBRE} alcanzó la mayoría de edad el {FECHA_MAYORIA}, se sugiere egresar la medida.",
+      "texto_renderizado": "Se hace presente que Juan alcanzó la mayoría de edad el 10 de agosto de 2026, se sugiere egresar la medida.",
+      "confirmado": true
+    },
+    "R1_FALLBACK": {
+      "texto_fuente": "Mayor de edad, se sugiere egresar la medida.",
+      "texto_renderizado": "Mayor de edad, se sugiere egresar la medida.",
+      "confirmado": true
+    },
+    "R2_PROXIMA_MAYORIA": {
+      "texto_fuente": "Se hace presente que {PNOMBRE} alcanzará la mayoría de edad el {FECHA_MAYORIA}",
+      "texto_renderizado": "Se hace presente que Juan alcanzará la mayoría de edad el 10 de agosto de 2026",
+      "confirmado": false
+    },
+    "INGRESO_ORDENADO_CON_RESOLUCION": {
+      "texto_fuente": "Medida revisada, a la espera de ingreso efectivo. Se hace presente que se ordena ingreso a {PROGRAMA} con fecha {FECHA_RESOLUCION}",
+      "texto_renderizado": "Medida revisada, a la espera de ingreso efectivo. Se hace presente que se ordena ingreso a PRM Esperanza con fecha 1 de junio de 2026",
+      "confirmado": true
+    },
+    "R3_DCE_CORTO_SIN_RESOLUCION": {
+      "texto_fuente": "Medida en espera desde hace {DIAS_ESPERA} días",
+      "texto_renderizado": "Medida en espera desde hace 45 días",
+      "confirmado": false
+    },
+    "R4_DCE_LARGO": {
+      "texto_fuente": "Medida revisada, a la espera de ingreso efectivo. Se deja constancia que se remite proyecto de resolución pidiendo cuenta a programa respecto al IE. Igualmente, en gestión independiente de este Centro, se remite correo electrónico al programa consultando respecto de fecha estimada de ingreso",
+      "texto_renderizado": "Medida revisada, a la espera de ingreso efectivo. Se deja constancia que se remite proyecto de resolución pidiendo cuenta a programa respecto al IE. Igualmente, en gestión independiente de este Centro, se remite correo electrónico al programa consultando respecto de fecha estimada de ingreso",
+      "confirmado": false
+    },
+    "R5_MULCHEN": {
+      "texto_fuente": "Medida revisada, a la espera de ingreso efectivo. Se remite proyecto de resolución pidiendo cuenta a programa respecto al IE. Se remite correo electrónico al programa consultando respecto de fecha estimada de ingreso",
+      "texto_renderizado": "Medida revisada, a la espera de ingreso efectivo. Se remite proyecto de resolución pidiendo cuenta a programa respecto al IE. Se remite correo electrónico al programa consultando respecto de fecha estimada de ingreso",
+      "confirmado": false
+    },
+    "R6_LAJA_TOME": {
+      "texto_fuente": "Medida revisada, a la espera de ingreso efectivo. Se deja constancia que se remite proyecto de resolución pidiendo cuenta a programa respecto al IE. Igualmente, en gestión independiente de este Centro, se remite correo electrónico al programa consultando respecto de fecha estimada de ingreso",
+      "texto_renderizado": "Medida revisada, a la espera de ingreso efectivo. Se deja constancia que se remite proyecto de resolución pidiendo cuenta a programa respecto al IE. Igualmente, en gestión independiente de este Centro, se remite correo electrónico al programa consultando respecto de fecha estimada de ingreso",
+      "confirmado": false
+    },
+    "R7_CURADOR": {
+      "texto_fuente": "No registra curador asociado en RUS, se sugiere asociar curador ad litem informáticamente",
+      "texto_renderizado": "No registra curador asociado en RUS, se sugiere asociar curador ad litem informáticamente",
+      "confirmado": true
+    },
+    "R8_OIDO": {
+      "texto_fuente": "Audiencia de oído revisada",
+      "texto_renderizado": "Audiencia de oído revisada",
+      "confirmado": true
+    },
+    "FALLBACK_SIN_RESOLUCION": {
+      "texto_fuente": "Medida revisada, a la espera de ingreso efectivo a {PROGRAMA}",
+      "texto_renderizado": "Medida revisada, a la espera de ingreso efectivo a PRM Esperanza",
+      "confirmado": false
+    }
+  },
+  "CUMPLIMIENTO": {
+    "R0": {
+      "texto_fuente": "Este Centro de Seguimiento no realiza seguimiento a esta derivación",
+      "texto_renderizado": "Este Centro de Seguimiento no realiza seguimiento a esta derivación",
+      "confirmado": true
+    },
+    "R1_CON_FECHA": {
+      "texto_fuente": "Se hace presente que {PNOMBRE} alcanzó la mayoría de edad el {FECHA_MAYORIA}, se sugiere egresar la medida.",
+      "texto_renderizado": "Se hace presente que Juan alcanzó la mayoría de edad el 10 de agosto de 2026, se sugiere egresar la medida.",
+      "confirmado": true
+    },
+    "R1_FALLBACK": {
+      "texto_fuente": "Mayor de edad, se sugiere egresar la medida.",
+      "texto_renderizado": "Mayor de edad, se sugiere egresar la medida.",
+      "confirmado": true
+    },
+    "R2_PROXIMA_MAYORIA": {
+      "texto_fuente": "Se hace presente que {PNOMBRE} alcanzará la mayoría de edad el {FECHA_MAYORIA}.",
+      "texto_renderizado": "Se hace presente que Juan alcanzará la mayoría de edad el 10 de agosto de 2026.",
+      "confirmado": false
+    },
+    "R3_INGRESO_RECIENTE": {
+      "texto_fuente": "Medida revisada, ingreso efectivo registrado el día {FECHA_INGRESO}.",
+      "texto_renderizado": "Medida revisada, ingreso efectivo registrado el día 5 de mayo de 2026.",
+      "confirmado": false
+    },
+    "R4_MEDIDA_VENCIDA": {
+      "texto_fuente": "La medida se visualiza vencida en RUS desde el {FECHA_EGRESO_PROY}.",
+      "texto_renderizado": "La medida se visualiza vencida en RUS desde el 15 de julio de 2026.",
+      "confirmado": true
+    },
+    "R5_POR_VENCER": {
+      "texto_fuente": "Se hace presente que tanto la vigencia de la medida como el próximo informe de avance vencen el día {FECHA_EGRESO_PROY}.",
+      "texto_renderizado": "Se hace presente que tanto la vigencia de la medida como el próximo informe de avance vencen el día 15 de julio de 2026.",
+      "confirmado": false
+    },
+    "R5B_PROXIMO_INFORME": {
+      "texto_fuente": "Medida revisada, se hace presente que el próximo informe de avance vence el {FECHA_PROX_INFORME}.",
+      "texto_renderizado": "Medida revisada, se hace presente que el próximo informe de avance vence el 20 de septiembre de 2026.",
+      "confirmado": false
+    },
+    "R6_CURADOR": {
+      "texto_fuente": "No registra curador asociado en RUS, se sugiere asociar curador ad litem informáticamente.",
+      "texto_renderizado": "No registra curador asociado en RUS, se sugiere asociar curador ad litem informáticamente.",
+      "confirmado": true
+    },
+    "R7_OIDO": {
+      "texto_fuente": "Oído con fecha {FECHA_OIDO}.",
+      "texto_renderizado": "Oído con fecha 12 de junio de 2026.",
+      "confirmado": false
+    },
+    "R8_FICHA_RESIDENCIAL": {
+      "texto_fuente": "Atendida que la ficha residencial tiene más de seis meses sin actualizar, se sugiere actualizar.",
+      "texto_renderizado": "Atendida que la ficha residencial tiene más de seis meses sin actualizar, se sugiere actualizar.",
+      "confirmado": true
+    },
+    "R9_FICHA_INDIVIDUAL_VIEJA": {
+      "texto_fuente": "Atendida que la ficha individual tiene más de seis meses sin actualizar, se sugiere actualizar.",
+      "texto_renderizado": "Atendida que la ficha individual tiene más de seis meses sin actualizar, se sugiere actualizar.",
+      "confirmado": true
+    },
+    "R9_FICHA_INDIVIDUAL_RECIENTE": {
+      "texto_fuente": "Se hace presente que la ficha individual fue actualizada con fecha {FECHA_FICHA_IND}.",
+      "texto_renderizado": "Se hace presente que la ficha individual fue actualizada con fecha 3 de marzo de 2026.",
+      "confirmado": false
+    },
+    "R10_FICHA_FAE": {
+      "texto_fuente": "Medida revisada, se hace presente que {PNOMBRE} no tiene ficha FAE, se sugiere confeccionar.",
+      "texto_renderizado": "Medida revisada, se hace presente que Juan no tiene ficha FAE, se sugiere confeccionar.",
+      "confirmado": false
+    },
+    "FALLBACK": {
+      "texto_fuente": "Medida revisada, sin observaciones.",
+      "texto_renderizado": "Medida revisada, sin observaciones.",
+      "confirmado": false
+    },
+    "CRUCE_HOJA2": {
+      "texto_fuente": "Medida revisada, se hace presente que el programa {PROGRAMA} deberá remitir informe de avance a más tardar el {FECHA_VENCIMIENTO}.",
+      "texto_renderizado": "Medida revisada, se hace presente que el programa PRM Esperanza deberá remitir informe de avance a más tardar el 30 de agosto de 2026.",
+      "confirmado": true
+    }
+  },
+  "INFORMES": {
+    "VENCIDO": {
+      "texto_fuente": "Se remite correo electrónico al programa {PROGRAMA} a fin de requerir el informe de avance que se encuentra vencido en RUS desde el {FECHA_VENCIMIENTO}.",
+      "texto_renderizado": "Se remite correo electrónico al programa PRM Esperanza a fin de requerir el informe de avance que se encuentra vencido en RUS desde el 30 de agosto de 2026.",
+      "confirmado": false
+    },
+    "POR_VENCER_DCE": {
+      "texto_fuente": "Se remite correo electrónico al programa {PROGRAMA} a fin de señalar que el informe diagnóstico ordenado en autos debe ser remitido a más tardar el {FECHA_VENCIMIENTO}.",
+      "texto_renderizado": "Se remite correo electrónico al programa PRM Esperanza a fin de señalar que el informe diagnóstico ordenado en autos debe ser remitido a más tardar el 30 de agosto de 2026.",
+      "confirmado": false
+    },
+    "POR_VENCER_GENERAL": {
+      "texto_fuente": "Se remite correo electrónico al programa {PROGRAMA} a fin de señalar que el próximo informe de avance vence el {FECHA_VENCIMIENTO}.",
+      "texto_renderizado": "Se remite correo electrónico al programa PRM Esperanza a fin de señalar que el próximo informe de avance vence el 30 de agosto de 2026.",
+      "confirmado": false
+    }
+  }
+}

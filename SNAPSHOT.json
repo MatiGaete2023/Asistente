@@ -1,0 +1,170 @@
+{
+  "proyecto": {
+    "nombre": "CSMP Assistant — Asistente de RUS",
+    "version_actual": "8.14.0",
+    "lenguaje": "Python 3.12",
+    "framework_gui": "tkinter (3 pestañas: Motor RUS / Correos Outlook / Resoluciones)",
+    "contexto": "Centro de Seguimiento de Medidas de Protección — Concepción. Apoyo administrativo a tribunales de familia: Laja, Mulchén, Tomé. Genera observaciones judiciales automatizadas para ~150-200 NNA",
+    "usuario": "Matías Gaete Agüero (CSMP Concepción)",
+    "restricciones_inviolables": [
+      "Sin acceso directo a RUS/SITFA/SATURNO",
+      "Sin envío automático — solo Drafts en Outlook",
+      "CC fijo: ucc_concepcion@pjud.cl",
+      "Input 100% manual, output 100% supervisado por humano"
+    ]
+  },
+  "estructura": {
+    "main.py": "entry point — inserta raíz en sys.path y lanza RUSApp",
+    "config_rus.json": "rutas entrada/salida + cc_fijo + retención logs",
+    "contactos.json": "destinatarios por tribunal (LAJA/MULCHEN/TOME)",
+    "motor/": {
+      "procesador.py": "dispatcher ESPERA/CUMPLIMIENTO/INFORMES + cruce Hoja2",
+      "mapeo_columnas.py": "aliases de columnas (CURADOR AD LITEM, RUT MENOR, NOMBRE CENTRO, etc.)",
+      "utilidades.py": "fechas, nombres, RUT, prefijos — todas las funciones puras",
+      "reglas_espera.py": "9 reglas modo ESPERA",
+      "reglas_cumplimiento.py": "11 reglas modo CUMPLIMIENTO + cruce Hoja2",
+      "reglas_informes.py": "2 reglas modo INFORMES"
+    },
+    "comunicaciones/": {
+      "generador_correos.py": "GeneradorCorreos.procesar() y procesar_espera() — Outlook COM con Display(False)",
+      "contactos_programas.py": "CatastroContactos con 3 niveles de matching + aliases",
+      "catastro_programas.json": "231 programas con director y mail",
+      "aliases_programas.json": "mapeo RUS → catastro (3 entradas)",
+      "plantillas/": "HTML con encabezado SEÑORES/PROGRAMA/PRESENTE (negrita+subrayado)"
+    },
+    "resoluciones/": {
+      "generador_resoluciones.py": "generar_resoluciones() — Word consolidado con PC_IE/PC_INFO/NOMENCL por tribunal"
+    },
+    "validador/": "precheck.py + reglas_validacion.py + reporte.py — 8 anomalías A1-A8",
+    "logs/": "log_manager.py — retención configurable",
+    "gui/app.py": "RUSApp Tkinter con 3 pestañas + vista previa (S3) + confirmación de textos (S4)",
+    "motor/textos.py": "v8.13 — fuente única de verdad de textos (render/confirmado/listar_no_confirmados), lee motor/textos_observaciones.json",
+    "motor/textos_observaciones.json": "31 reglas (ESPERA 12 / CUMPLIMIENTO 16 / INFORMES 3), cada una con confirmado:true/false",
+    "motor/textos_confirmacion.py": "v8.14 (S4) — exportar_pendientes()/importar_confirmaciones() sin sesiones de chat, backup automático con timestamp",
+    "tests/": "v8.14 (S2) — test_paridad.py (goldens congelados, detecta sabotaje de textos), test_regresion.py (subprocess aislado, real si hay Excel de producción vía env vars / smoke sintético si no), test_confirmacion_textos.py (S4), runner.py, generar_goldens.py, fixtures/generar_fixtures.py"
+  },
+  "reglas_cumplimiento": {
+    "R0": "Derivación sin seguimiento (OPD/DAM) → corte",
+    "R1": "Mayor de edad desde FEC.NACIMIENTO → corte",
+    "R2": "Próximo a mayoría ≤60 días → ACUMULABLE",
+    "R3": "Ingreso reciente ≤30 días",
+    "R4": "Medida vencida (DÍAS_EGRESAR ≤ 0)",
+    "R5": "Medida por vencer 1-45 días",
+    "R5b": "Próximo informe (solo si !R5 y !vencida)",
+    "R6": "Curador inválido — detecta por RUT real (regex `\\d{6,8}-[\\dkK]`)",
+    "R7": "Oído reciente ≤45 días",
+    "R8": "Ficha residencial >180 días — SOLO RTA/RTT/RES/PEE/RFA/RPPM (sin PRM)",
+    "R9": "Ficha individual",
+    "R10": "Ficha FAE ausente",
+    "cruce_hoja2": "Match 5 campos (RIT+RUT+NOMBRE+DERIV+TRIBUNAL) — solo si !R5 y !vencida. Filtro índice: vd > hoy (estrictamente futuro)"
+  },
+  "formato_global": {
+    "fechas": "fecha_es() → '19 de mayo de 2026'",
+    "derivaciones": "titulo_programa() — siglas MAYÚS, preposiciones lower, resto capitalize",
+    "nombres": "limpiar_nombre() elimina () y contenido",
+    "audiencia": "audiencia_suffix() sufijo solo si fecha futura"
+  },
+  "gui": {
+    "pestañas": 3,
+    "pestaña_1_motor": "ESPERA / CUMPLIMIENTO / INFORMES + Abrir salida — bitácora oscura con colores",
+    "pestaña_2_correos": "✉ Informes vencidos/por vencer + ✉ Lista de espera — requiere pywin32 + Outlook",
+    "pestaña_3_resoluciones": "⚙ Generar resoluciones .docx — detecta tribunal automáticamente",
+    "sys_path": "configurado al inicio de gui/app.py — funciona ejecutando main.py o app.py directo",
+    "import_procesar": "a nivel de módulo (no dentro de _worker) — errores visibles al arrancar"
+  },
+  "historial_fixes_clave": {
+    "v8.4": "Parser fechas determinista (ISO vs LATAM), normalizar_match con pd.isna guard",
+    "v8.5": "BUG-A done siempre, BUG-B audiencia pasada, BUG-C residuos paréntesis, BUG-D progress, BUG-E prefijo vacío",
+    "v8.6": "Regex pre-compiladas (1.5x), dataframe_to_rows (3x), to_dict records (8.6x), Path.home() ruta dinámica",
+    "v8.7": "Fix ModuleNotFoundError: sys.path al inicio + import procesar a nivel módulo",
+    "v8.8": "GUI expandida con 3 pestañas",
+    "v8.9": "Fix correos: GetInspector con fallback, matching token-set nivel 3 (45% ratio)",
+    "v8.9.1": "aliases_programas.json para 3 programas con nombre distinto en RUS",
+    "v8.10": "Plantillas correo encabezado SEÑORES/PROGRAMA/PRESENTE (negrita+subrayado), firma con Display(False)",
+    "v8.11": "R6 curador con guard cols None, R8 ficha residencial solo prefijos residenciales",
+    "v8.11.1": "R6 detección por RUT real via tiene_curador_real() — cubre placeholders --- NO POSEE Sin designar",
+    "v8.11.2": "Cruce Hoja2 vd <= hoy (no vd < hoy) — excluye informes que vencen hoy mismo",
+    "v8.12": "Auditoría completa: fix fecha formato US en resoluciones (dayfirst), R7 curador en ESPERA por RUT real, encabezado institucional Mulchén eliminado, R1/R2 espera alineadas con cumplimiento, tildes en números a palabras",
+    "v8.12.1": "Textos LITERALES v7.1 restaurados en ESPERA (constantes de módulo, unión '. ' sin puntos finales, fallback con programa crudo), fix doble punto R1+audiencia en ambos modos, limpiar_nombre 1x por fila, R10 sin upper() redundante",
+    "v8.13": "Textos externalizados a motor/textos_observaciones.json (31 reglas) vía render(modo,id,**datos) + SafeDict — elimina el bug recurrente de retipeo/divergencia de textos hardcodeados",
+    "v8.14": "S1 micro-fixes (curador institucional sin RUT, except desnudo, get_date serial Excel), S2 suite tests/ permanente (goldens congelados detectan sabotaje de JSON, regresión subprocess-aislada), S3 vista previa GUI en memoria (calcular_preview(), byte-a-byte idéntica al export), S4 flujo de confirmación de textos en GUI (exportar/importar Excel, sin sesiones de chat), S5 padding uniforme 8px en LabelFrames, S6 build PyInstaller validado (--add-data motor/textos_observaciones.json)"
+  },
+  "items_completados": [
+    "Motor 3 modos con cruce Hoja2",
+    "GUI 3 pestañas con bitácora",
+    "Correos Outlook funcionales (firma + encabezado)",
+    "Resoluciones .docx consolidadas",
+    "Aliases programas RUS↔catastro",
+    "Todos los bugs reportados en producción real corregidos",
+    "v8.13: textos externalizados a JSON (31 reglas, único punto de verdad)",
+    "v8.14 S1: micro-fixes validados (curador institucional, except desnudo, serial Excel)",
+    "v8.14 S2: suite tests/ permanente con detector de sabotaje (69 passed, 3 skipped sin Excel reales)",
+    "v8.14 S3: vista previa GUI en memoria, verificada byte-a-byte idéntica al export (con Xvfb real)",
+    "v8.14 S4: flujo de confirmación de textos vía Excel (exporta/importa, backup automático)",
+    "v8.14 S5: padding 8px uniforme en los 9 LabelFrames de la GUI",
+    "v8.14 S6: build PyInstaller onefile validado — JSON se extrae correctamente en _MEIPASS (probado en Linux; falta compilar el .exe real en Windows)"
+  ],
+  "items_pendientes": [
+    {
+      "id": "FASE_5",
+      "nombre": "Reportes consolidados",
+      "scope": "R1 NNA en residencia, R2 órdenes búsqueda, R3 trimestral, R4 semanal",
+      "estado": "postergada por usuario",
+      "prioridad": "media"
+    },
+    {
+      "id": "PLANTILLA_PC_INFO_LAJA",
+      "nombre": "Plantilla PC_INFO para Juzgado Laja en módulo resoluciones",
+      "estado": "no existe en el código actual",
+      "prioridad": "baja"
+    },
+    {
+      "id": "CATASTRO_PROGRAMAS_AUSENTES",
+      "nombre": "Revisión periódica catastro_programas.json",
+      "scope": "Algunos programas aparecen en RUS con nombres no mapeados",
+      "estado": "manual — agregar entradas o aliases cuando aparezcan",
+      "prioridad": "operacional"
+    },
+    {
+      "id": "COMPILACION_EXE",
+      "nombre": "PyInstaller para distribución sin Python instalado",
+      "comando": "pyinstaller --noconsole --onefile --add-data \"motor/textos_observaciones.json;motor\" --name \"Asistente_RUS\" main.py",
+      "estado": "logica validada en Linux (JSON se extrae correctamente en _MEIPASS) — falta que Matías compile el .exe REAL en su máquina Windows con este comando (separador ; en Windows, no :)",
+      "prioridad": "media"
+    },
+    {
+      "id": "TEXTOS_17_PENDIENTES",
+      "nombre": "Confirmar los 17 textos con confirmado:false en textos_observaciones.json",
+      "scope": "ESPERA: R2_PROXIMA_MAYORIA, R3_DCE_CORTO_SIN_RESOLUCION, R4_DCE_LARGO, R5_MULCHEN, R6_LAJA_TOME, FALLBACK_SIN_RESOLUCION (6) | CUMPLIMIENTO: R2_PROXIMA_MAYORIA, R3_INGRESO_RECIENTE, R5_POR_VENCER, R5B_PROXIMO_INFORME, R7_OIDO, R9_FICHA_INDIVIDUAL_RECIENTE, R10_FICHA_FAE, FALLBACK (8) | INFORMES: VENCIDO, POR_VENCER_DCE, POR_VENCER_GENERAL (3)",
+      "como_resolver": "Usar el flujo S4 en la GUI: botón 'Exportar pendientes…' → editar TEXTOS_PENDIENTES.xlsx (columna TEXTO_CORRECTO si hay que cambiar redacción, APROBADO=SI por fila) → botón 'Importar confirmaciones…'. Después correr 'python tests/generar_goldens.py' para que el test de paridad adopte el nuevo texto como referencia.",
+      "estado": "pendiente — bloqueado en la aprobación de Matías, no en código",
+      "prioridad": "alta"
+    },
+    {
+      "id": "REGRESION_REAL_PENDIENTE",
+      "nombre": "Correr tests/test_regresion.py contra los 4 Excel reales de producción",
+      "scope": "Este sandbox de desarrollo NO tiene los Excel reales de Matías. Se validó con fixtures sintéticos (tests/fixtures/generar_fixtures.py) — 0 errores, 0 '..', pipeline no crashea. Los conteos exactos 16/100/333 y diff=0 vs baseline v8.13 NO están verificados todavía.",
+      "como_resolver": "En la máquina de Matías: definir env vars CSMP_EXCEL_ESPERA / CSMP_EXCEL_CUMPLIMIENTO / CSMP_EXCEL_INFORMES apuntando a los Excel reales, correr 'pytest tests/ -v'.",
+      "estado": "pendiente — requiere máquina con datos reales",
+      "prioridad": "alta"
+    }
+  ],
+  "archivos_prueba": {
+    "cumplimiento": "cc46_cga_amblistcump__63_.xls (100 filas + Hoja1 con 175 informes por vencer)",
+    "informes": "RUS_INFORMES_20260518_093752.xlsx (333 filas)"
+  },
+  "tribunales_atendidos": [
+    "LAJA",
+    "MULCHEN",
+    "TOME"
+  ],
+  "dependencias": [
+    "pandas",
+    "openpyxl",
+    "xlrd",
+    "python-dateutil",
+    "pywin32 (Windows + Outlook)",
+    "python-docx (resoluciones)",
+    "pytest (dev — correr tests/, opcional para uso normal de la app)"
+  ]
+}

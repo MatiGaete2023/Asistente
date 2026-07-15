@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"></head>
+<body style="font-family:'Calibri',Arial,sans-serif;font-size:11pt;color:#222;margin:0;padding:0">
+
+<p>SEÑORES:<br>
+{{NOMBRE_PROGRAMA}}<br>
+<strong><u>PRESENTE.</u></strong></p>
+
+<p>Junto con saludar, se remite a continuación nómina de causas que se encuentran 
+en <strong>lista de espera</strong> en el módulo RUS de {{TRIBUNAL}}, respecto de 
+las cuales se solicita informar la fecha estimada de ingreso.</p>
+
+<table style="border-collapse:collapse;font-size:10pt;width:100%;max-width:820px">
+  <thead>
+    <tr style="background:#1F4E78;color:#fff">
+      <th style="padding:6px 10px;text-align:left;border:1px solid #ccc">RIT</th>
+      <th style="padding:6px 10px;text-align:left;border:1px solid #ccc">Tribunal</th>
+      <th style="padding:6px 10px;text-align:left;border:1px solid #ccc">RUT NNA</th>
+      <th style="padding:6px 10px;text-align:left;border:1px solid #ccc">Nombre NNA</th>
+      <th style="padding:6px 10px;text-align:center;border:1px solid #ccc">Días en espera</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{FILAS}}
+  </tbody>
+</table>
+
+<p>Se ruega acusar recibo de la presente comunicación.</p>
+
+</body>
+</html>

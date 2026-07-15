@@ -1,0 +1,22 @@
+# Config local — se regenera portable; NUNCA distribuir (ver PROMPT_CONTINUACION.md)
+config_rus.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# Backups automáticos del flujo de confirmación de textos (S4)
+motor/textos_observaciones.backup_*.json
+
+# Build PyInstaller
+build/
+dist/
+*.spec
+
+# Salidas locales
+salida/
+*.log
