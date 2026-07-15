@@ -34,16 +34,16 @@ Estoy trabajando en **CSMP Assistant** (Asistente de RUS), aplicación Python de
 - **Plantillas correo**: encabezado `SEÑORES: / {programa} / PRESENTE.` (PRESENTE con negrita + subrayado).
 - **Firma Outlook**: `mail.Display(False)` antes de leer HTMLBody.
 - **sys.path**: configurado al inicio de `gui/app.py`.
-- **Textos de observación**: SOLO desde `motor/textos_observaciones.json` vía `render()`. Nunca hardcodear en `.py`. Nunca marcar `confirmado:true` por inferencia de una IA — solo Matías puede confirmar (flujo S4 en la GUI, o exportar/editar/importar el Excel).
+- **Textos de observación**: SOLO desde `motor/textos_observaciones.json` vía `render()`. Nunca hardcodear en `.py`. Nunca marcar `confirmado:true` por inferencia de una IA — requiere aprobación humana mediante S4.
 - **ESPERA vs CUMPLIMIENTO, unión de fragmentos**: ESPERA usa `". ".join()` sin punto final en cada fragmento; CUMPLIMIENTO usa `" ".join()` con punto final en cada fragmento. Mezclar convenciones causa el bug de doble punto.
 - **Vista previa (S3)**: `calcular_preview()` en `motor/procesador.py` es la ÚNICA función que debe usar la GUI para previsualizar — garantiza paridad byte-a-byte con el export real porque comparte el mismo código (`_calcular_simple`/`_calcular_cumplimiento`). No reimplementar la lógica de reglas en la GUI.
 
-## PENDIENTE EXPLÍCITO (bloqueado en Matías, no en código)
+## PENDIENTE EXPLÍCITO (bloqueado en el entorno institucional, no en código)
 
 ### 1. Confirmar los 17 textos con `confirmado:false`
 Usar el flujo S4 en la GUI (pestaña Motor → "Confirmación de textos" → "Exportar pendientes…"). Editar el Excel, importar. Después correr `python tests/generar_goldens.py` para que el test de paridad adopte el nuevo texto.
 
-### 2. Regresión real contra los 4 Excel de producción
+### 2. Regresión real contra los tres Excel de producción
 Este sandbox de desarrollo no tuvo acceso a los Excel reales — la validación se hizo con `tests/fixtures/generar_fixtures.py` (datos sintéticos, solo smoke test estructural). Correr en tu máquina:
 ```
 CSMP_EXCEL_ESPERA=ruta\excel_espera.xlsx

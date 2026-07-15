@@ -1,5 +1,50 @@
 
 
+## v9.0.2 — 2026-07-15 — Auditoría de la revision3 aplicada
+
+Fusiona `Asistente_v9.0.1_revision3` conservando sus aportes y corrigiendo sus
+regresiones (informe completo: `docs/auditoria/AUDITORIA_v9.0.1_REVISION3.md`).
+
+- **Guardado en Windows reparado**: se elimina `os.fsync` sobre handle de solo
+  lectura (habría hecho fallar TODOS los guardados en producción); se mantiene
+  el guardado atómico `save → os.replace`.
+- **Anti-fórmulas sin corrupción**: las celdas `=...` se fuerzan a texto
+  (`data_type='s'`) en vez de anteponer apóstrofes que ensuciaban `---`.
+- **Hoja2 conforme al catálogo**: duplicados conservan la última fila (C-10) y
+  una Hoja2 malformada degrada a "cruce desactivado" con aviso fuerte en GUI,
+  nunca aborta CUMPLIMIENTO. El aviso también aparece si el índice queda vacío.
+- **Contactos**: se restaura el matching fuzzy en la generación de correos
+  (con los nuevos guardas de ambigüedad de la revisión: ante duda → "Sin
+  contacto", decide un humano). Aliases malformados se omiten, no bloquean.
+- **Correos con degradación suave (D9)**: filas defectuosas se excluyen con
+  aviso y el resto del lote SÍ genera borradores; tribunal no reconocido se
+  agrupa por el valor crudo. Etiqueta DCE vuelve a decidirse por la
+  DERIVACIÓN de RUS (Mejoras §1.3).
+- **Orden §9.2 en CUMPLIMIENTO**: la audiencia (T-03) vuelve a ir después de
+  las fichas C-07/C-08 (bug heredado de v9.0.0 que la revisión trasladó).
+- **Resoluciones**: se restaura el flujo aprobado (marcadores COMPLETAR,
+  bloques [SIN PLANTILLA], sin aborto total por fila; NOMENCL intacto),
+  conservando validación de archivo y guardado atómico.
+- **Reversiones de spec-drift**: `ALIAS_RIT` solo "RIT" (Mejora 2.5 rechazada),
+  `normalizar_match` histórica (G-08), alias de ficha individual inventados
+  eliminados, E-06 vuelve a ser fallback (§9.1/D11).
+- **Cobertura Apéndice C completada**: 65 tests nuevos de bordes
+  (espera/cumplimiento/informes/correos/salida Excel, ejemplos §10 byte a
+  byte). Suite: 168 passed. `test_config` ya no rompe la colección sin Tk.
+
+## v9.0.1 — 2026-07-15
+
+- Corrige corrupción de textos por celdas `NaN`, agrega validación de placeholders y escritura atómica.
+- Restaura el mapeo de ficha individual y la regla C-07; conserva el colector de incidencias externo.
+- Restringe contactos automáticos a nombres/aliases exactos y rechaza entradas ambiguas.
+- Escapa HTML, normaliza agrupación de tribunal, corrige DCE y asegura el ciclo Outlook COM.
+- Rechaza archivos Excel inválidos/sobredimensionados y neutraliza fórmulas inyectadas al exportar.
+- Enruta toda actualización Tkinter por la cola del hilo principal.
+- Activa bitácora operativa con retención configurable y sin identificadores de casos.
+- Fortalece prevalidación por modo y cancela salidas con errores de catálogo o fila.
+- Omite resoluciones incompletas y contabiliza por separado generadas, omitidas y fallidas.
+- Añade `pyproject.toml`, versiones bloqueadas, CI Windows/Linux, CodeQL, Dependabot y `.spec` completo.
+
 ## v9.0.0 — 2026-07-15
 
 - Implementa el catálogo v2 de reglas y textos confirmados v9.
@@ -260,7 +305,7 @@ Benchmark: 8.6x más rápido (421 ms → 49 ms en ~10.000 filas).
 Este era el cuello de botella real, no el import de relativedelta.
 
 ### CLAIM-5 — Ruta dinámica en DEFAULT_CONFIG
-Reemplazada ruta estática `C:\Users\cmgaete\Desktop\Matias\...` por
+Reemplazada una ruta de usuario estática por
 `Path.home() / "CSMP_RUS"`. Funciona en cualquier equipo Windows/Mac/Linux.
 La propuesta de la auditoría (`Path.home() / "Desktop"`) fue rechazada:
 en equipos con OneDrive el Desktop está en ruta distinta.
@@ -584,7 +629,7 @@ Nuevo `motor/textos.py`: `render(modo, id_regla, **datos)` con SafeDict
 quedan como baseline heredado v7.1/v8.x sin reconfirmar caracter-por-caracter.
 
 ### FIX — ESPERA generaba texto rechazado por el usuario (DCE < 30 dias)
-Reportado 2026-06-11 con archivo real `RUS_ESPERA_20260610_085639.xlsx`
+Reportado 2026-06-11 con un archivo real de ESPERA.
 (16/16 filas eran el caso disputado). Texto viejo: "Medida en espera desde
 hace N dias". Nuevo comportamiento: si `FEC. RESOLUCION` esta presente
 (columna ahora mapeada, antes ausente — hallazgo F2 de auditoria previa),
@@ -610,15 +655,15 @@ registra...". Corregido: texto sin punto final, igual al ejemplo literal
 original del usuario.
 
 ### Regresion verificada (subprocess aislados vs baseline v8.12.1 real)
-- CUMPLIMIENTO: 0 filas distintas / 100 (cc46_cga_amblistcump__63_.xls)
-- INFORMES: 0 filas distintas / 333 (RUS_INFORMES_20260518_093752.xlsx)
+- CUMPLIMIENTO: 0 filas distintas / 100 (archivo real autorizado)
+- INFORMES: 0 filas distintas / 333 (archivo real autorizado)
 - Confirma: la migracion a JSON no altero ningun comportamiento existente,
   solo el mecanismo de almacenamiento del texto.
 
 ### Hardening (sin fabricar texto nuevo)
 - `mapeo_columnas.py`: alias para `FEC. RESOLUCION` (6 variantes).
 - `comunicaciones/generador_correos.py`: `except:` desnudo -> `except Exception:`.
-- `config_rus.json` (con path `C:\Users\cmgaete\...` hardcodeado) eliminado
+- `config_rus.json` (con una ruta de usuario hardcodeada) eliminado
   del paquete. `gui/app.py` ya regenera un default portable
   (`Path.home()/CSMP_RUS`) desde v8.6 — el archivo shippeado lo pisaba.
 
@@ -662,8 +707,8 @@ CA-S3/S4 → S5 → S6 → CA-GLOBAL, según Plan de Ejecución Maestro v8.14.
 - `tests/test_regresion.py`: dos modos — regresión REAL contra Excel de
   producción si se definen `CSMP_EXCEL_ESPERA/CUMPLIMIENTO/INFORMES`, o smoke
   sintético con `tests/fixtures/generar_fixtures.py` si no (este sandbox de
-  desarrollo no tiene los 4 Excel reales de Matías — pendiente correr en su
-  máquina, ver `SNAPSHOT.json` → `REGRESION_REAL_PENDIENTE`).
+  desarrollo no tiene los tres Excel reales autorizados — pendiente correr en una
+  máquina autorizada, ver `SNAPSHOT.json` → `REGRESION_REAL_PENDIENTE`).
 - `tests/test_confirmacion_textos.py`: ciclo completo del flujo S4.
 - Resultado: **73 passed, 3 skipped** (los 3 skip son exactamente los que
   requieren Excel reales — comportamiento esperado, no un fallo).
@@ -708,7 +753,7 @@ CA-S3/S4 → S5 → S6 → CA-GLOBAL, según Plan de Ejecución Maestro v8.14.
   el binario se auto-extrae a `_MEI*/motor/textos_observaciones.json`, JSON
   válido, 31 reglas, 0 errores en stdout/stderr.
 - ⚠️ Pendiente: el binario real para producción (.exe) debe compilarse en
-  Windows por Matías — mismo comando pero separador `;` en `--add-data`
+  Windows por la persona responsable — mismo comando pero separador `;` en `--add-data`
   (Windows) en vez de `:` (Linux/Mac usado aquí solo para validar).
 
 ### Limpieza previa a la entrega
@@ -716,9 +761,9 @@ CA-S3/S4 → S5 → S6 → CA-GLOBAL, según Plan de Ejecución Maestro v8.14.
   se regenera portable al primer arranque (`Path.home()/CSMP_RUS`).
 - Artefactos de build (`build/`, `dist/`, `*.spec`, `__pycache__/`) excluidos.
 
-### Pendiente explícito (no ejecutado, requiere a Matías — ver SNAPSHOT.json)
+### Pendiente explícito (requiere un entorno institucional — ver SNAPSHOT.json)
 - Confirmar los 17 textos `confirmado:false` vía el nuevo flujo S4.
-- Correr la regresión real (`tests/test_regresion.py`) contra los 4 Excel de
-  producción en su máquina.
+- Correr la regresión real (`tests/test_regresion.py`) contra los tres Excel de
+  producción en una máquina autorizada.
 - Compilar el `.exe` real en Windows y probarlo contra un Excel real de cada
   modo antes de usar en producción.

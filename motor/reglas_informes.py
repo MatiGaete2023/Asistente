@@ -3,10 +3,12 @@ from datetime import datetime
 from .composicion import componer, prefijo, fecha_valida, Incidencias
 from .utilidades import fecha_es, titulo_programa, es_derivacion_sin_seg, es_dce
 from .textos import render
-from .reglas_espera import _complementarias
+from .reglas_espera import _audiencia
 
 def generar_observacion_informes(row, tribunal, cols, incidencias=None, fila_excel=None):
-    incidencias=incidencias or Incidencias(); programa=str(row.get(cols.get('programa'), '')).strip(); nombre=str(row.get(cols.get('nombre'), '')).strip()
+    if incidencias is None:
+        incidencias = Incidencias()
+    programa=str(row.get(cols.get('programa'), '')).strip(); nombre=str(row.get(cols.get('nombre'), '')).strip()
     pfx=prefijo(nombre, programa); prog=titulo_programa(programa)
     if es_derivacion_sin_seg(programa): return componer(pfx,[render('COMUN','NO_SEGUIMIENTO', PROGRAMA=prog)])
     fv=fecha_valida(row.get(cols.get('vencimiento'))) if cols.get('vencimiento') else None
@@ -17,6 +19,7 @@ def generar_observacion_informes(row, tribunal, cols, incidencias=None, fila_exc
     elif 0 <= dias <= 30: key='I02_POR_VENCER_DCE' if es_dce(programa) else 'I02_POR_VENCER_GENERAL'
     else: return ''
     fr=[render('INFORMES', key, PROGRAMA=prog, FECHA_VENCIMIENTO=fecha_es(fv))]
-    comp=_complementarias(row, cols)
-    if comp: fr.append(comp[-1])
+    audiencia = _audiencia(row, cols)
+    if audiencia:
+        fr.append(audiencia)
     return componer(pfx, fr)

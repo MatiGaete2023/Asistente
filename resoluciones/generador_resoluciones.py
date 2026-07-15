@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-CSMP Assistant v8.0 — Fase 4: Generador de Resoluciones .docx
+CSMP Assistant v9.0.1 — Generador de Resoluciones .docx
 Formato: Arial 12 pt, justificado, interlineado 1.5.
 1 RIT por página, Word consolidado.
 """
 
-import re, unicodedata
+import os
+import re
+import unicodedata
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -16,6 +19,7 @@ from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
+from motor.utilidades import validar_archivo_excel
 
 # ─── Fechas ───────────────────────────────────────────────────────────────────
 
@@ -167,6 +171,7 @@ def extraer_ncl(obs: str) -> str:
     if "informe" in n:           return "Ingreso informe cumplimiento X"
     if "prorrog" in n:           return "Prorroga"
     if "egreso" in n:            return "Egreso Serv. Protec. Especializada y otras redes"
+    # NOMENCL es dormant y se deja INTACTO (Mejoras §2.1) — incluido este fallback.
     return "NCL — COMPLETAR MANUALMENTE"
 
 # ─── Mapeo columnas ───────────────────────────────────────────────────────────
@@ -247,7 +252,7 @@ def _header_mulchen(doc):
     """Encabezado Mulchén — sin datos institucionales (dirección/fono/correo)."""
     # Las líneas de dirección, fono, correo y atención virtual fueron eliminadas
     # a solicitud del usuario. El documento comienza directamente con la ciudad/fecha.
-    pass
+    return None
 
 def _header_laja_nota(doc):
     """Nota inicial de Laja en negrita."""
@@ -429,15 +434,18 @@ def generar_resoluciones(ruta_excel: str, ruta_salida: str) -> dict:
         {
             "archivo_generado": str | None,
             "total_resoluciones": int,
+            "omitidas": int,
+            "fallidas": int,
             "faltantes": list[dict],
             "errores": list[str],
         }
     """
     resultado = {"archivo_generado": None, "total_resoluciones": 0,
+                 "omitidas": 0, "fallidas": 0,
                  "faltantes": [], "errores": []}
 
     try:
-        df = pd.read_excel(ruta_excel)
+        df = pd.read_excel(validar_archivo_excel(ruta_excel))
         df.columns = [str(c).strip() for c in df.columns]
         df = df.dropna(how="all").fillna("")
     except Exception as e:
@@ -473,15 +481,24 @@ def generar_resoluciones(ruta_excel: str, ruta_salida: str) -> dict:
         tribunal_raw = str(row.get(cols["tribunal"] or "", "")).strip()
         tribunal     = detectar_tribunal(tribunal_raw)
 
+        def valor(key):
+            raw = row.get(cols[key], "") if cols.get(key) else ""
+            return "" if pd.isna(raw) else str(raw).strip()
+
+        # Flujo aprobado (Mejoras §2.1: SOLO se parchan las frases de
+        # detección; el mecanismo se conserva): los datos faltantes van como
+        # "COMPLETAR" para edición manual en el Word, las filas sin plantilla
+        # entran como bloque [SIN PLANTILLA] y un error de fila NUNCA aborta
+        # el documento completo.
+        fecha_resolucion = valor("fec_res")
         d = {
-            "rit":       str(row.get(cols["rit"] or "", "")).strip() or "COMPLETAR",
-            "nombre":    str(row.get(cols["nombre"] or "", "")).strip() or "COMPLETAR",
-            "rut":       str(row.get(cols["rut"] or "", "")).strip() or "COMPLETAR",
-            "derivacion":str(row.get(cols["derivacion"] or "", "")).strip() or "COMPLETAR",
-            "duracion":  duracion_limpia(row.get(cols["duracion"] or "", "")),
-            "fec_res":   (fecha_numerica(row.get(cols["fec_res"], None))
-                          if cols["fec_res"] and str(row.get(cols["fec_res"], "")).strip()
-                          else "COMPLETAR"),
+            "rit": valor("rit") or "COMPLETAR",
+            "nombre": valor("nombre") or "COMPLETAR",
+            "rut": valor("rut") or "COMPLETAR",
+            "derivacion": valor("derivacion") or "COMPLETAR",
+            "duracion": duracion_limpia(valor("duracion")),
+            "fec_res": (fecha_numerica(fecha_resolucion)
+                        if _parse_fecha(fecha_resolucion) is not None else "COMPLETAR"),
         }
 
         if not primera:
@@ -495,6 +512,7 @@ def generar_resoluciones(ruta_excel: str, ruta_salida: str) -> dict:
                 "rit": d["rit"], "tribunal": tribunal_raw,
                 "tipo": tipo, "fila_excel": idx + 2,
             })
+            resultado["omitidas"] += 1
             _nuevo_parrafo(doc, f"[SIN PLANTILLA — {tribunal_raw or 'DESCONOCIDO'}]", bold=True)
             _nuevo_parrafo(doc, f"RIT: {d['rit']}  |  Tipo: {tipo}")
             _nuevo_parrafo(doc, "Completa este bloque manualmente.", italic=True)
@@ -513,6 +531,7 @@ def generar_resoluciones(ruta_excel: str, ruta_salida: str) -> dict:
                         "rit": d["rit"], "tribunal": "LAJA", "tipo": "PC_INFO",
                         "fila_excel": idx + 2, "nota": "Sin plantilla PC_Informe para Laja",
                     })
+                    resultado["omitidas"] += 1
                     _nuevo_parrafo(doc, "[SIN PLANTILLA — PC_INFO LAJA]", bold=True)
                     _nuevo_parrafo(doc, f"RIT: {d['rit']}")
 
@@ -523,6 +542,7 @@ def generar_resoluciones(ruta_excel: str, ruta_salida: str) -> dict:
 
         except Exception as e:
             resultado["errores"].append(f"Fila {idx+2} RIT {d['rit']}: {e}")
+            resultado["fallidas"] += 1
             _nuevo_parrafo(doc, f"[ERROR: {e}]", bold=True)
 
     if resoluciones_generadas == 0:
@@ -530,15 +550,20 @@ def generar_resoluciones(ruta_excel: str, ruta_salida: str) -> dict:
         return resultado
 
     Path(ruta_salida).mkdir(parents=True, exist_ok=True)
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     nombre = f"Resoluciones_{ts}.docx"
     ruta_completa = Path(ruta_salida) / nombre
+    temporal = ruta_completa.with_name(
+        f".{ruta_completa.stem}.{uuid.uuid4().hex}.tmp.docx")
 
     try:
-        doc.save(str(ruta_completa))
+        # Guardado atómico sin fsync (falla sobre handle de solo lectura en Windows).
+        doc.save(str(temporal))
+        os.replace(temporal, ruta_completa)
         resultado["archivo_generado"] = str(ruta_completa)
         resultado["total_resoluciones"] = resoluciones_generadas
     except Exception as e:
+        temporal.unlink(missing_ok=True)
         resultado["errores"].append(f"Error guardando Word: {e}")
 
     return resultado
@@ -549,7 +574,13 @@ def generar_informe_faltantes(faltantes: list, ruta_salida: str) -> str | None:
     if not faltantes: return None
     df = pd.DataFrame(faltantes)
     Path(ruta_salida).mkdir(parents=True, exist_ok=True)
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     ruta = Path(ruta_salida) / f"Resoluciones_FALTANTES_{ts}.xlsx"
-    df.to_excel(str(ruta), index=False)
+    temporal = ruta.with_name(f".{ruta.stem}.{uuid.uuid4().hex}.tmp.xlsx")
+    try:
+        df.to_excel(str(temporal), index=False)
+        os.replace(temporal, ruta)
+    except Exception:
+        temporal.unlink(missing_ok=True)
+        raise
     return str(ruta)

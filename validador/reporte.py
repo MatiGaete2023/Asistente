@@ -5,7 +5,12 @@ Produce: consola (texto) + archivo HTML autocontenido.
 """
 
 from datetime import datetime
+from html import escape
+import os
+import re
+import uuid
 from pathlib import Path
+from motor.version import VERSION
 
 
 # ─── Colores y etiquetas ──────────────────────────────────────────────────────
@@ -19,8 +24,8 @@ _COLORES = {
 
 # ─── Console ─────────────────────────────────────────────────────────────────
 
-def imprimir_reporte(resultado: dict) -> None:
-    """Imprime resumen en consola."""
+def imprimir_reporte(resultado: dict, *, incluir_detalle: bool = False) -> None:
+    """Imprime resumen; los identificadores requieren opt-in explícito."""
     sep = "─" * 60
     puede = resultado["puede_procesar"]
     stats = resultado["estadisticas"]
@@ -40,19 +45,21 @@ def imprimir_reporte(resultado: dict) -> None:
         print("  ── BLOQUEANTES ──────────────────────────")
         for a in bloq:
             print(f"  [{a['id']}] {a['descripcion']}  ({a['count']} afectados)")
-            for d in a["detalle"][:5]:
-                print(f"       • {d}")
-            if len(a["detalle"]) > 5:
-                print(f"       ... y {len(a['detalle']) - 5} más")
+            if incluir_detalle:
+                for d in a["detalle"][:5]:
+                    print(f"       • {d}")
+                if len(a["detalle"]) > 5:
+                    print(f"       ... y {len(a['detalle']) - 5} más")
 
     if adv:
         print("\n  ── ADVERTENCIAS ─────────────────────────")
         for a in adv:
             print(f"  [{a['id']}] {a['descripcion']}  ({a['count']} afectados)")
-            for d in a["detalle"][:3]:
-                print(f"       • {d}")
-            if len(a["detalle"]) > 3:
-                print(f"       ... y {len(a['detalle']) - 3} más")
+            if incluir_detalle:
+                for d in a["detalle"][:3]:
+                    print(f"       • {d}")
+                if len(a["detalle"]) > 3:
+                    print(f"       ... y {len(a['detalle']) - 3} más")
 
     if not bloq and not adv:
         print("  Sin anomalías detectadas. Excel limpio.")
@@ -75,7 +82,7 @@ def _seccion_anomalias(anomalias: list) -> str:
     html = ""
     for a in anomalias:
         color = _COLORES.get(a["severidad"], _COLORES["ADVIERTE"])
-        items = "".join(f"<li>{d}</li>" for d in a["detalle"])
+        items = "".join(f"<li>{escape(str(d), quote=True)}</li>" for d in a["detalle"])
         resto = ""
         if a["count"] > len(a["detalle"]):
             extra = a["count"] - len(a["detalle"])
@@ -85,8 +92,8 @@ def _seccion_anomalias(anomalias: list) -> str:
              background:#fafafa;margin:10px 0;padding:10px 14px;border-radius:4px">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
             {_badge(a['severidad'])}
-            <strong>[{a['id']}]</strong>
-            <span>{a['descripcion']}</span>
+            <strong>[{escape(str(a['id']), quote=True)}]</strong>
+            <span>{escape(str(a['descripcion']), quote=True)}</span>
             <span style="margin-left:auto;color:#666;font-size:0.85em">
               {a['count']} afectado(s)
             </span>
@@ -107,8 +114,11 @@ def generar_html(resultado: dict, ruta_salida: str) -> str:
     stats  = resultado["estadisticas"]
     bloq   = resultado["anomalias_bloqueantes"]
     adv    = resultado["anomalias_advertencia"]
-    modo   = resultado.get("modo", "")
-    ts     = resultado.get("timestamp", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    modo_original = str(resultado.get("modo", ""))
+    modo   = escape(modo_original, quote=True)
+    ts     = escape(str(resultado.get(
+        "timestamp", datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    )), quote=True)
 
     estado_color = "#27ae60" if puede else "#c0392b"
     estado_texto = "✅ PUEDE PROCESAR" if puede else "❌ BLOQUEADO — Corrija anomalías antes de procesar"
@@ -117,8 +127,8 @@ def generar_html(resultado: dict, ruta_salida: str) -> str:
     html_adv  = _seccion_anomalias(adv)  or '<p style="color:#27ae60">Sin advertencias ✓</p>'
 
     col_vals = "".join(
-        f'<tr><td style="padding:3px 8px">{k}</td>'
-        f'<td style="padding:3px 8px;text-align:right"><strong>{v}</strong></td></tr>'
+        f'<tr><td style="padding:3px 8px">{escape(str(k), quote=True)}</td>'
+        f'<td style="padding:3px 8px;text-align:right"><strong>{escape(str(v), quote=True)}</strong></td></tr>'
         for k, v in stats.items()
     )
 
@@ -142,7 +152,7 @@ def generar_html(resultado: dict, ruta_salida: str) -> str:
 <body>
 
 <div class="card">
-  <h1>📋 Reporte de Validación — CSMP Assistant v8.0</h1>
+  <h1>📋 Reporte de Validación — CSMP Assistant {VERSION}</h1>
   <p style="color:#888;font-size:0.88em;margin:0">
     Modo: <strong>{modo}</strong> &nbsp;|&nbsp;
     Generado: {ts} &nbsp;|&nbsp;
@@ -187,9 +197,21 @@ def generar_html(resultado: dict, ruta_salida: str) -> str:
 </html>"""
 
     Path(ruta_salida).mkdir(parents=True, exist_ok=True)
-    nombre = f"validacion_{modo}_{datetime.now():%Y%m%d_%H%M%S}.html"
-    ruta_archivo = str(Path(ruta_salida) / nombre)
-    with open(ruta_archivo, "w", encoding="utf-8") as f:
-        f.write(html)
+    modo_archivo = re.sub(r"[^A-Za-z0-9_-]+", "_", modo_original).strip("_")
+    modo_archivo = modo_archivo or "DESCONOCIDO"
+    nombre = f"validacion_{modo_archivo}_{datetime.now():%Y%m%d_%H%M%S_%f}.html"
+    ruta_archivo = Path(ruta_salida) / nombre
+    temporal = ruta_archivo.with_name(
+        f".{ruta_archivo.stem}.{uuid.uuid4().hex}.tmp.html"
+    )
+    try:
+        with open(temporal, "w", encoding="utf-8") as f:
+            f.write(html)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temporal, ruta_archivo)
+    except Exception:
+        temporal.unlink(missing_ok=True)
+        raise
 
-    return ruta_archivo
+    return str(ruta_archivo)

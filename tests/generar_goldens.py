@@ -9,9 +9,8 @@ referencia fija para detectar cambios NO intencionales al JSON.
 
 NO se ejecuta automaticamente con pytest. Se ejecuta a mano, a proposito,
 solo en dos casos:
-  1. Ahora mismo (primera vez), para congelar el v8.14 tal como quedo
-     post-S1.
-  2. Cada vez que Matias confirme/corrija un texto via el flujo de S4
+  1. Al establecer una nueva versión aprobada del catálogo.
+  2. Cada vez que la persona usuaria confirme/corrija un texto vía S4
      (importar TEXTOS_PENDIENTES.xlsx) y se quiera que el nuevo texto
      pase a ser el golden vigente.
 
@@ -45,7 +44,9 @@ PLACEHOLDERS_SINTETICOS = {
     "FECHA_PROX_INFORME":  "20 de septiembre de 2026",
     "FECHA_INGRESO":       "5 de mayo de 2026",
     "FECHA_OIDO":          "12 de junio de 2026",
-    "FECHA_FICHA_IND":     "3 de marzo de 2026",
+    "FECHA_AUDIENCIA":     "22 de julio de 2026",
+    "FECHA_FICHA_INDIVIDUAL": "3 de marzo de 2026",
+    "FECHA_EGRESO_PROYECTADO": "15 de julio de 2026",
     "FECHA_VENCIMIENTO":   "30 de agosto de 2026",
 }
 

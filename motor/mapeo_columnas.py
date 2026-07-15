@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-motor/mapeo_columnas.py — v8.1
+motor/mapeo_columnas.py — v9.0.1
 Cambios: agrega alias prox_aud para PROXS. AUDS.
          agrega alias para columnas Hoja2 (cruce informes)
 """
@@ -9,6 +9,9 @@ Cambios: agrega alias prox_aud para PROXS. AUDS.
 from .columnas_comunes import (
     obtener_col, ALIAS_PROGRAMA, ALIAS_TRIBUNAL, ALIAS_NOMBRE,
     ALIAS_RUT, ALIAS_RIT, ALIAS_VENCIMIENTO, ALIAS_ESPERA,
+    ALIAS_NACIMIENTO, ALIAS_RESOLUCION, ALIAS_DIAS_CUMPLIMIENTO,
+    ALIAS_DIAS_EGRESO, ALIAS_INGRESO_EFECTIVO, ALIAS_EGRESO_PROYECTADO,
+    ALIAS_FICHA_FAE, ALIAS_FICHA_INDIVIDUAL,
 )
 
 
@@ -19,15 +22,13 @@ def mapear_columnas(df, modo):
     cols["programa"]    = obtener_col(df, ALIAS_PROGRAMA)
     cols["tribunal"]    = obtener_col(df, ALIAS_TRIBUNAL)
     cols["nombre"]      = obtener_col(df, ALIAS_NOMBRE)
-    cols["nacimiento"]  = obtener_col(df, ["FEC. NACIMIENTO", "FEC.NACIMIENTO", "FECHA NACIMIENTO",
-                                            "FEC NACIMIENTO"])
+    cols["nacimiento"]  = obtener_col(df, ALIAS_NACIMIENTO)
     cols["edad"]        = obtener_col(df, ["EDAD"])
     cols["curador"]     = obtener_col(df, ["CURADOR", "CURADOR AD LITEM", "CURADOR AD-LITEM", "CURADOR AD LITEM.", "CUR. AD LITEM", "CURADOR/A AD LITEM", "CURADOR/A AD-LITEM"])
     cols["oido"]        = obtener_col(df, ["FEC. OIDO", "FEC.OIDO", "FEC OIDO", "FECHAOIDO",
                                             "FEC. OÍDO", "FEC.OÍDO"])
     # FEC. RESOLUCIÓN — requerida por INGRESO_ORDENADO_CON_RESOLUCION (ESPERA)
-    cols["resolucion"]  = obtener_col(df, ["FEC. RESOLUCIÓN", "FEC.RESOLUCIÓN", "FEC. RESOLUCION",
-                                            "FEC.RESOLUCION", "FECHA RESOLUCION", "FEC RESOLUCION"])
+    cols["resolucion"]  = obtener_col(df, ALIAS_RESOLUCION)
     # PROXS. AUDS. — opcional, presente en algunas hojas
     cols["prox_aud"]    = obtener_col(df, ["PROXS. AUDS.", "PROXS AUDS", "PROX AUD",
                                             "PROXIMA AUDIENCIA", "PRÓXIMA AUDIENCIA",
@@ -42,17 +43,12 @@ def mapear_columnas(df, modo):
         cols["espera"] = obtener_col(df, ALIAS_ESPERA)
 
     elif modo == "CUMPLIMIENTO":
-        cols["dias_cumpl"]  = obtener_col(df, ["DIAS DE CUMPLIMIENTO", "DÍAS DE CUMPLIMIENTO",
-                                                "DIAS CUMPLIMIENTO"])
-        cols["dias_egresar"] = obtener_col(df, ["DIAS PARA EGRESAR", "DÍAS PARA EGRESAR",
-                                                 "DIAS EGRESAR"])
-        cols["ingreso"]      = obtener_col(df, ["FEC.INGRESO EFECTIVO", "FEC. INGRESO EFECTIVO",
-                                                 "FEC INGRESO EFECTIVO"])
-        cols["egreso_proy"]  = obtener_col(df, ["FEC.EGRESO PROYECTADO", "FEC. EGRESO PROYECTADO",
-                                                 "FEC EGRESO PROYECTADO"])
-        cols["ficha_fae"]    = obtener_col(df, ["FEC.ACT.F.FAE", "FEC. ACT. F. FAE",
-                                                 "FEC ACT F FAE", "FEC.ACT.F.FAE/FAS",
-                                                 "FEC. ACT. F. FAE/FAS"])
+        cols["dias_cumpl"]  = obtener_col(df, ALIAS_DIAS_CUMPLIMIENTO)
+        cols["dias_egresar"] = obtener_col(df, ALIAS_DIAS_EGRESO)
+        cols["ingreso"]      = obtener_col(df, ALIAS_INGRESO_EFECTIVO)
+        cols["egreso_proy"]  = obtener_col(df, ALIAS_EGRESO_PROYECTADO)
+        cols["ficha_fae"]    = obtener_col(df, ALIAS_FICHA_FAE)
+        cols["ficha_ind"]    = obtener_col(df, ALIAS_FICHA_INDIVIDUAL)
 
     elif modo == "INFORMES":
         cols["vencimiento"] = obtener_col(df, ALIAS_VENCIMIENTO)

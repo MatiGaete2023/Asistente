@@ -1,25 +1,39 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Logs — Manager de bitácora diaria con rotación automática."""
+import hashlib
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 
-def get_logger(ruta_logs: str, nombre: str = "csmp") -> logging.Logger:
+def get_logger(ruta_logs: str, nombre: str = "csmp",
+               dias_retencion: int = 90) -> logging.Logger:
     """Retorna logger configurado con archivo diario."""
-    Path(ruta_logs).mkdir(parents=True, exist_ok=True)
-    nombre_archivo = f"csmp_{datetime.now():%Y%m%d}.log"
-    ruta = Path(ruta_logs) / nombre_archivo
+    dias_retencion = int(dias_retencion)
+    if not 1 <= dias_retencion <= 3650:
+        raise ValueError("dias_retencion debe estar entre 1 y 3650")
 
-    logger = logging.getLogger(nombre)
-    if not logger.handlers:
+    directorio = Path(ruta_logs).expanduser().resolve()
+    directorio.mkdir(parents=True, exist_ok=True)
+    nombre_archivo = f"csmp_{datetime.now():%Y%m%d}.log"
+    ruta = directorio / nombre_archivo
+
+    identificador = hashlib.sha256(str(directorio).encode("utf-8")).hexdigest()[:16]
+    logger = logging.getLogger(f"{nombre}.{identificador}")
+    logger.propagate = False
+    if not any(
+        isinstance(handler, logging.FileHandler)
+        and Path(handler.baseFilename) == ruta
+        for handler in logger.handlers
+    ):
         handler = logging.FileHandler(str(ruta), encoding="utf-8")
         handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
         logger.addHandler(handler)
-        logger.setLevel(logging.INFO)
+    logger.setLevel(logging.INFO)
 
-    _rotar(Path(ruta_logs), dias=90)
+    _rotar(directorio, dias=dias_retencion)
     return logger
+
 
 def _rotar(ruta_logs: Path, dias: int):
     """Elimina logs más antiguos que `dias` días."""
@@ -30,5 +44,6 @@ def _rotar(ruta_logs: Path, dias: int):
             fecha = datetime.strptime(fecha_str, "%Y%m%d")
             if fecha < umbral:
                 archivo.unlink()
-        except Exception:
-            pass
+        except ValueError:
+            # Archivos con otro patrón no pertenecen a la rotación diaria.
+            continue

@@ -5,7 +5,7 @@ tests/test_regresion.py
 
 Dos modos de operación:
 
-1) REGRESION REAL (en la máquina de Matías, con los 4 Excel de producción):
+1) REGRESIÓN REAL (en una máquina autorizada, con tres Excel de producción):
    Definir variables de entorno antes de correr pytest:
 
      CSMP_EXCEL_ESPERA=C:\\ruta\\excel_espera.xlsx
@@ -96,7 +96,7 @@ def test_pipeline_no_crashea(modo, ruta_salida):
 @pytest.mark.skipif(not MODO_REAL, reason=(
     "Requiere Excel reales de producción (CSMP_EXCEL_ESPERA / "
     "CSMP_EXCEL_CUMPLIMIENTO / CSMP_EXCEL_INFORMES). "
-    "Correr en la máquina de Matías, no en este sandbox."
+    "Correr en una máquina autorizada, no en este entorno de desarrollo."
 ))
 @pytest.mark.parametrize("modo", ["ESPERA", "CUMPLIMIENTO", "INFORMES"])
 def test_conteo_filas_produccion(modo, ruta_salida):
@@ -127,10 +127,30 @@ def test_advertencia_modo_sintetico(capsys):
 
 
 def test_columnas_salida_v9_documentadas():
-    esperadas = ["FECHA_OBS", "OBSERVACION", "TT", "CC", "RES"]
-    assert esperadas[0] == "FECHA_OBS"
+    import pandas as pd
+    from motor.procesador import _insertar_columnas_salida
+
+    salida = _insertar_columnas_salida(pd.DataFrame({"ORIGEN": [1]}))
+    assert list(salida.columns) == [
+        "ORIGEN", "FECHA_OBS", "OBSERVACION", "TT", "CC", "RES"
+    ]
 
 
 def test_observaciones_sin_marcadores_v9():
-    prohibidos = ["{", "}", "..", "ERROR", "None"]
-    assert "ERROR" in prohibidos
+    import pandas as pd
+    from motor.procesador import calcular_preview
+
+    prohibidos = ("{", "}", "..", "ERROR", "None")
+    for modo, ruta in RUTAS.items():
+        if not Path(ruta).exists():
+            continue
+        salida, error = calcular_preview(ruta, modo)
+        assert error is None, f"[{modo}] {error}"
+        observaciones = salida["OBSERVACION"].fillna("").astype(str)
+        for marcador in prohibidos:
+            assert not observaciones.str.contains(marcador, regex=False).any(), (
+                f"[{modo}] marcador prohibido {marcador!r}"
+            )
+        assert not observaciones.str.contains(
+            r"\bnan\b", case=False, regex=True
+        ).any(), f"[{modo}] marcador prohibido 'nan'"

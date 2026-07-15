@@ -12,7 +12,16 @@ def _pnombre(nombre):
     n=limpiar_nombre(nombre); return n.split()[0] if n else ''
 def _date(v): return v.date() if hasattr(v,'date') else v
 
-def _complementarias(row, cols):
+def _audiencia(row, cols):
+    """Retorna únicamente T-03 cuando existe una audiencia vigente."""
+    fa=fecha_valida(row.get(cols.get('prox_aud'))) if cols.get('prox_aud') else None
+    if fa and _date(fa) >= datetime.now().date():
+        return render('COMUN','PROX_AUDIENCIA', FECHA_AUDIENCIA=fecha_es(fa))
+    return ''
+
+def _curador_oido(row, cols):
+    """T-01 y T-02 (sin audiencia) — reutilizado por cumplimiento, que
+    intercala las fichas C-07/C-08 antes de la audiencia (§9.2)."""
     out=[]; hoy=datetime.now().date()
     if cols.get('curador') and not tiene_curador_real(row.get(cols.get('curador'))):
         out.append(render('COMUN','CURADOR'))
@@ -20,14 +29,20 @@ def _complementarias(row, cols):
     if fo:
         d=(hoy-_date(fo)).days
         if 0 <= d <= 45: out.append(render('COMUN','OIDO', FECHA_OIDO=fecha_es(fo)))
-    fa=fecha_valida(row.get(cols.get('prox_aud'))) if cols.get('prox_aud') else None
-    if fa and _date(fa) >= hoy:
-        out.append(render('COMUN','PROX_AUDIENCIA', FECHA_AUDIENCIA=fecha_es(fa)))
+    return out
+
+
+def _complementarias(row, cols):
+    out = _curador_oido(row, cols)
+    audiencia = _audiencia(row, cols)
+    if audiencia:
+        out.append(audiencia)
     return out
 
 
 def generar_observacion_espera(row, tribunal, cols, incidencias=None, fila_excel=None) -> str:
-    incidencias = incidencias or Incidencias()
+    if incidencias is None:
+        incidencias = Incidencias()
     programa=str(row.get(cols.get('programa'), '')).strip(); nombre=str(row.get(cols.get('nombre'), '')).strip()
     pfx=prefijo(nombre, programa); pn=_pnombre(nombre); hoy=datetime.now().date()
     if es_derivacion_sin_seg(programa):
@@ -47,8 +62,11 @@ def generar_observacion_espera(row, tribunal, cols, incidencias=None, fila_excel
         d=(hoy-_date(fres)).days
         if 0 <= d <= 29:
             frags.append(render('ESPERA','E04_RESOLUCION_RECIENTE', PROGRAMA=titulo_programa(programa), FECHA_RESOLUCION=fecha_es(fres))); principal=True
-    espera=get_int(row.get(cols.get('espera'))) or 0
-    if espera >= 30:
+    espera=get_int(row.get(cols.get('espera'))) if cols.get('espera') else None
+    if cols.get('espera') and (espera is None or espera < 0):
+        incidencias.agregar(fila_excel, _rit(row, cols), 'E-05/E-06',
+                            'tiempo de espera ausente o inválido (G-05)')
+    if espera is not None and espera >= 30:
         if es_dce(programa):
             frags.append(render('ESPERA','E05_SOLO_CORREO')); principal=True
         elif tribunal in ('LAJA','MULCHEN'):
@@ -57,6 +75,8 @@ def generar_observacion_espera(row, tribunal, cols, incidencias=None, fila_excel
             frags.append(render('ESPERA','E05_PROYECTO_Y_CORREO' if espera >= 60 else 'E05_SOLO_CORREO')); principal=True
         else:
             incidencias.agregar(fila_excel, _rit(row, cols), 'E-05', 'tribunal no reconocido — regla omitida (G-06)')
+    # E-06 es el fallback del §9.1: dispara siempre que no haya principal
+    # (incluye T ESPERA ausente/ inválido y tribunal no reconocido — D11).
     if not principal:
         frags.append(render('ESPERA','E06_SIN_RESOLUCION', PROGRAMA=titulo_programa(programa)))
     frags += _complementarias(row, cols)

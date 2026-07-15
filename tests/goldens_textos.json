@@ -12,7 +12,9 @@
       "FECHA_PROX_INFORME": "20 de septiembre de 2026",
       "FECHA_INGRESO": "5 de mayo de 2026",
       "FECHA_OIDO": "12 de junio de 2026",
-      "FECHA_FICHA_IND": "3 de marzo de 2026",
+      "FECHA_AUDIENCIA": "22 de julio de 2026",
+      "FECHA_FICHA_INDIVIDUAL": "3 de marzo de 2026",
+      "FECHA_EGRESO_PROYECTADO": "15 de julio de 2026",
       "FECHA_VENCIMIENTO": "30 de agosto de 2026"
     }
   },
@@ -44,7 +46,7 @@
     },
     "PROX_AUDIENCIA": {
       "texto_fuente": "Se cita a audiencia para el día {FECHA_AUDIENCIA}.",
-      "texto_renderizado": "Se cita a audiencia para el día {FECHA_AUDIENCIA}.",
+      "texto_renderizado": "Se cita a audiencia para el día 22 de julio de 2026.",
       "confirmado": true
     }
   },
@@ -78,17 +80,17 @@
     },
     "C04_VENCIDA": {
       "texto_fuente": "La medida se visualiza vencida en RUS desde el {FECHA_EGRESO_PROYECTADO}.",
-      "texto_renderizado": "La medida se visualiza vencida en RUS desde el {FECHA_EGRESO_PROYECTADO}.",
+      "texto_renderizado": "La medida se visualiza vencida en RUS desde el 15 de julio de 2026.",
       "confirmado": true
     },
     "C05_VENCE_HOY": {
       "texto_fuente": "Se hace presente que la medida se visualiza con vencimiento para el día de hoy, {FECHA_EGRESO_PROYECTADO}.",
-      "texto_renderizado": "Se hace presente que la medida se visualiza con vencimiento para el día de hoy, {FECHA_EGRESO_PROYECTADO}.",
+      "texto_renderizado": "Se hace presente que la medida se visualiza con vencimiento para el día de hoy, 15 de julio de 2026.",
       "confirmado": true
     },
     "C05_POR_VENCER": {
       "texto_fuente": "Se hace presente que la medida se visualiza próxima a vencer en RUS el {FECHA_EGRESO_PROYECTADO}.",
-      "texto_renderizado": "Se hace presente que la medida se visualiza próxima a vencer en RUS el {FECHA_EGRESO_PROYECTADO}.",
+      "texto_renderizado": "Se hace presente que la medida se visualiza próxima a vencer en RUS el 15 de julio de 2026.",
       "confirmado": true
     },
     "C07_SIN_FICHA": {
@@ -98,12 +100,12 @@
     },
     "C07_FICHA_ANTIGUA": {
       "texto_fuente": "Atendido que la ficha individual registra como última actualización el {FECHA_FICHA_INDIVIDUAL}, superando los 180 días, se sugiere actualizar.",
-      "texto_renderizado": "Atendido que la ficha individual registra como última actualización el {FECHA_FICHA_INDIVIDUAL}, superando los 180 días, se sugiere actualizar.",
+      "texto_renderizado": "Atendido que la ficha individual registra como última actualización el 3 de marzo de 2026, superando los 180 días, se sugiere actualizar.",
       "confirmado": true
     },
     "C07_FICHA_RECIENTE": {
       "texto_fuente": "Se hace presente que la ficha individual fue actualizada con fecha {FECHA_FICHA_INDIVIDUAL}.",
-      "texto_renderizado": "Se hace presente que la ficha individual fue actualizada con fecha {FECHA_FICHA_INDIVIDUAL}.",
+      "texto_renderizado": "Se hace presente que la ficha individual fue actualizada con fecha 3 de marzo de 2026.",
       "confirmado": true
     },
     "C08_FICHA_FAE": {

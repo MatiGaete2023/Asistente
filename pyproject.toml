@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "csmp-asistente-rus"
+version = "9.0.2"
+description = "Aplicación local para procesamiento supervisado de planillas RUS"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "pandas>=2.2,<3",
+  "openpyxl>=3.1,<4",
+  "defusedxml>=0.7,<1",
+  "xlrd>=2,<3",
+  "python-docx>=1.1,<2",
+  "python-dateutil>=2.9,<3",
+  "pywin32>=305; sys_platform == 'win32'",
+]
+
+[project.gui-scripts]
+csmp-asistente-rus = "gui.app:main"
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8,<10",
+  "pytest-cov>=5,<8",
+  "ruff>=0.9,<1",
+  "mypy>=1.14,<2",
+  "bandit>=1.8,<2",
+  "pip-audit>=2.7,<3",
+  "pyinstaller>=6.11,<7",
+]
+
+[tool.setuptools.packages.find]
+include = ["motor*", "gui*", "comunicaciones*", "resoluciones*", "validador*", "logs*"]
+
+[tool.setuptools.package-data]
+motor = ["*.json"]
+comunicaciones = ["*.json", "plantillas/*.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+exclude = ["tests/fixtures"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "UP", "SIM"]
+ignore = ["E501"]

@@ -10,7 +10,7 @@ en tests/goldens_textos.json (no contra el propio JSON leido en caliente
 Si alguien edita motor/textos_observaciones.json sin pasar por el flujo
 de confirmacion (tests/generar_goldens.py), este test FALLA.
 
-Tras confirmar un texto deliberadamente (flujo S4 + Matias aprueba):
+Tras confirmar un texto deliberadamente (flujo S4 + aprobación humana):
     python tests/generar_goldens.py
 Y este test vuelve a estar verde con el nuevo texto como referencia.
 """
@@ -24,7 +24,12 @@ import pytest
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
 
-from motor.textos import render, _cargar, listar_no_confirmados  # noqa: E402
+from motor.textos import (  # noqa: E402
+    ErrorCatalogoTextos,
+    render,
+    _cargar,
+    listar_no_confirmados,
+)
 
 RUTA_GOLDEN = Path(__file__).resolve().parent / "goldens_textos.json"
 
@@ -62,7 +67,7 @@ def test_render_coincide_con_golden(modo, id_regla, esperado, placeholders):
         f"[{modo}.{id_regla}] render() cambio respecto al golden.\n"
         f"  esperado : {esperado['texto_renderizado']!r}\n"
         f"  obtenido : {obtenido!r}\n"
-        f"  Si el cambio es intencional (texto confirmado por Matias), "
+        f"  Si el cambio es intencional (texto confirmado por una persona), "
         f"correr: python tests/generar_goldens.py"
     )
 
@@ -118,7 +123,7 @@ def test_ningun_id_huerfano_o_faltante_vs_golden():
 
 
 def test_conteo_total_textos_es_25():
-    """Guard-rail explicito del inventario conocido (F-9: 31 IDs)."""
+    """Guard-rail explícito del inventario vigente."""
     data = _cargar()
     total = sum(len(reglas) for modo, reglas in data.items() if modo != "_meta")
     assert total == 25, f"Se esperaban 31 reglas totales, hay {total}"
@@ -131,10 +136,14 @@ def test_textos_no_confirmados_documentados():
     print(f"\n[INFO] Textos con confirmado=False: {len(pendientes)}")
     for modo, id_regla in pendientes:
         print(f"        - {modo}.{id_regla}")
-    # F-7 documenta 17 pendientes al momento de escribir este plan.
-    # Este assert es un guard-rail de expectativa, no un bloqueo duro:
-    # si baja, es progreso (S0); si sube sin explicacion, alerta.
-    assert len(pendientes) <= 17, (
-        f"Aumentaron los textos no confirmados a {len(pendientes)} "
-        f"(eran 17). Verificar si se agrego una regla nueva sin confirmar."
-    )
+    assert pendientes == []
+
+
+def test_render_falla_si_falta_placeholder():
+    with pytest.raises(ErrorCatalogoTextos, match="FECHA_AUDIENCIA"):
+        render("COMUN", "PROX_AUDIENCIA")
+
+
+def test_render_falla_si_no_existe_regla():
+    with pytest.raises(ErrorCatalogoTextos, match="Texto no definido"):
+        render("COMUN", "NO_EXISTE")
