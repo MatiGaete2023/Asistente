@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-gui/app.py — v8.8
+gui/app.py — v9.0.1
 Integra en pestañas Tkinter:
   - Pestaña 1: Motor RUS (ESPERA / CUMPLIMIENTO / INFORMES)
   - Pestaña 2: Correos Outlook (Informes y Lista de espera)
   - Pestaña 3: Resoluciones .docx
 """
 
-import sys
 import os
+import sys
 from pathlib import Path
 
-# Raíz del proyecto en sys.path — independiente del punto de entrada
+# Raíz del proyecto en sys.path — mantiene ejecutable `python gui/app.py`
+# además de main.py (entrada documentada) y el .exe empaquetado.
 _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
@@ -22,6 +23,7 @@ from tkinter import ttk, filedialog, messagebox
 import threading
 import queue
 import json
+import uuid
 from datetime import datetime
 
 try:
@@ -38,30 +40,29 @@ try:
     from motor.textos_confirmacion import (
         exportar_pendientes, importar_confirmaciones, contar_pendientes
     )
+    from motor.textos import ruta_catalogo_textos
+    from motor.utilidades import validar_archivo_excel
+    from logs.log_manager import get_logger
 except ImportError as e:
     _r = tk.Tk(); _r.withdraw()
     messagebox.showerror("Error de instalación",
         f"No se pudo cargar el motor:\n{e}\n\nEjecuta desde la carpeta raíz o usa main.py.")
     raise SystemExit(1)
 
-CONFIG_FILE   = "config_rus.json"
-CONTACTOS_FILE = "contactos.json"
-VERSION       = "v8.14.0"
+from motor.version import VERSION
 MAX_LOG_LINES = 500
 
-_BASE = Path.home() / "CSMP_RUS"
+_BASE = Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "CSMP_RUS"
+CONFIG_FILE = _BASE / "config_rus.json"
 DEFAULT_CONFIG = {
     "ruta_entrada_excel":  str(_BASE / "entrada" / "ENTRADA.xlsx"),
     "ruta_salida_excel":   str(_BASE / "salida"),
+    "ruta_correo_informes": str(_BASE / "entrada" / "INFORMES.xlsx"),
+    "ruta_correo_espera":  str(_BASE / "entrada" / "ESPERA_PROCESADA.xlsx"),
     "ruta_logs":           str(_BASE / "logs"),
-    "cc_fijo":             "ucc_concepcion@pjud.cl",
     "dias_retencion_logs": 90
 }
-DEFAULT_CONTACTOS = {
-    "LAJA":    ["abergman@pjud.cl", "ammillan@pjud.cl"],
-    "MULCHEN": ["cavillanueva@pjud.cl", "ialister@pjud.cl"],
-    "TOME":    ["nmojeda@pjud.cl", "csrain@pjud.cl"]
-}
+
 
 TAG_OK   = "ok"
 TAG_ERR  = "err"
@@ -71,27 +72,38 @@ TAG_DONE = "done_tag"
 
 
 def _cargar_json(path, default):
-    if not os.path.exists(path):
-        try:
-            os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(default, f, indent=4, ensure_ascii=False)
-        except Exception:
-            pass
+    path = Path(path)
+    if not path.exists():
+        _guardar_json(path, default)
         return default.copy()
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return default.copy()
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, dict):
+        raise ValueError(f"Configuración inválida: {path}")
+    resultado = {**default, **{k: v for k, v in data.items() if k in default}}
+    for clave, valor in resultado.items():
+        if clave.startswith("ruta_") and not isinstance(valor, str):
+            raise ValueError(f"{clave} debe ser texto")
+    retencion = resultado.get("dias_retencion_logs")
+    if isinstance(retencion, bool) or not isinstance(retencion, int):
+        raise ValueError("dias_retencion_logs debe ser un entero")
+    return resultado
 
 
 def _guardar_json(path, data):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporal = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
     try:
-        with open(path, "w", encoding="utf-8") as f:
+        with open(temporal, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
+            f.write("\n")
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temporal, path)
     except Exception:
-        pass
+        temporal.unlink(missing_ok=True)
+        raise
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -107,8 +119,27 @@ class RUSApp(tk.Tk):
 
         self.q          = queue.Queue()
         self.running    = False
-        self.cfg        = _cargar_json(CONFIG_FILE,    DEFAULT_CONFIG)
-        self.contactos  = _cargar_json(CONTACTOS_FILE, DEFAULT_CONTACTOS)
+        try:
+            self.cfg = _cargar_json(CONFIG_FILE, DEFAULT_CONFIG)
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            self.cfg = DEFAULT_CONFIG.copy()
+            messagebox.showwarning(
+                "Configuración",
+                f"No se pudo cargar {CONFIG_FILE}. Se usarán valores predeterminados.\n\n{exc}",
+            )
+
+        self.audit_logger = None
+        try:
+            self.audit_logger = get_logger(
+                self.cfg["ruta_logs"],
+                dias_retencion=self.cfg.get("dias_retencion_logs", 90),
+            )
+        except (OSError, TypeError, ValueError) as exc:
+            messagebox.showwarning(
+                "Bitácora",
+                "No se pudo iniciar la bitácora local. "
+                f"La aplicación continuará sin ella.\n\n{exc}",
+            )
 
         self._build_ui()
         self.after(100, self._process_queue)
@@ -237,11 +268,20 @@ class RUSApp(tk.Tk):
         # Excel de entrada (compartido con motor o propio)
         inp = ttk.LabelFrame(parent, text="Excel de entrada", padding=8)
         inp.pack(fill="x", pady=(0, 6))
-        self.correo_in_var = tk.StringVar(value=self.cfg.get("ruta_entrada_excel", ""))
-        ttk.Label(inp, text="Archivo Excel:", width=14, anchor="w").grid(row=0, column=0, sticky="w")
-        ttk.Entry(inp, textvariable=self.correo_in_var, width=76).grid(row=0, column=1, padx=5, sticky="ew")
-        ttk.Button(inp, text="Buscar…", width=8,
-                   command=lambda: self._pick_file(self.correo_in_var)).grid(row=0, column=2)
+        self.correo_informes_var = tk.StringVar(
+            value=self.cfg.get("ruta_correo_informes", self.cfg.get("ruta_entrada_excel", "")))
+        self.correo_espera_var = tk.StringVar(
+            value=self.cfg.get("ruta_correo_espera", self.cfg.get("ruta_entrada_excel", "")))
+        for row, (label, variable) in enumerate((
+            ("Excel INFORMES:", self.correo_informes_var),
+            ("Excel ESPERA procesado:", self.correo_espera_var),
+        )):
+            ttk.Label(inp, text=label, width=22, anchor="w").grid(
+                row=row, column=0, sticky="w", pady=2)
+            ttk.Entry(inp, textvariable=variable, width=68).grid(
+                row=row, column=1, padx=5, sticky="ew")
+            ttk.Button(inp, text="Buscar…", width=8,
+                       command=lambda v=variable: self._pick_file(v)).grid(row=row, column=2)
         inp.columnconfigure(1, weight=1)
 
         # Botones
@@ -252,7 +292,7 @@ class RUSApp(tk.Tk):
         acciones = [
             ("✉  Informes vencidos / por vencer",
              "Usa Excel de INFORMES (con columna FECHA VENCIMIENTO).\n"
-             "Genera borradores: 1 por programa (vencidos) + 1 por tribunal + 1 por programa (por vencer).",
+             "Genera 1 borrador por programa+tribunal y estado de vencimiento.",
              self._run_correos_informes),
             ("✉  Lista de espera",
              "Usa Excel de ESPERA procesado por el motor (con columna OBSERVACION).\n"
@@ -377,6 +417,13 @@ class RUSApp(tk.Tk):
     def _log(self, msg, tag=None):
         self._write(self.txt, msg, tag)
 
+    def _audit(self, evento, **campos):
+        """Registra solo métricas operativas; nunca datos de personas/casos."""
+        if self.audit_logger is None:
+            return
+        detalle = " ".join(f"{clave}={valor}" for clave, valor in sorted(campos.items()))
+        self.audit_logger.info("evento=%s%s", evento, f" {detalle}" if detalle else "")
+
     def _clear_log(self):
         self.txt.config(state="normal")
         self.txt.delete("1.0", "end")
@@ -392,6 +439,13 @@ class RUSApp(tk.Tk):
                 elif kind == "progress": self.pb["value"] = data
                 elif kind == "status":   self.status.set(data)
                 elif kind == "done":     self._finish_motor(data)
+                elif kind == "warn_hoja2":
+                    self._log("⚠️ " + data, TAG_WARN)
+                    messagebox.showwarning("Hoja2 ausente", data)
+                elif kind == "log_correos": self._write(self.txt_correos, data)
+                elif kind == "done_correos": self._finish_correos(data)
+                elif kind == "log_resoluciones": self._write(self.txt_resoluciones, data)
+                elif kind == "done_resoluciones": self._finish_resoluciones(data)
                 elif kind == "preview_ready": self._on_preview_ready(data)
         except queue.Empty:
             pass
@@ -420,13 +474,31 @@ class RUSApp(tk.Tk):
     def _save_cfg(self):
         self.cfg["ruta_entrada_excel"] = self.in_var.get().strip()
         self.cfg["ruta_salida_excel"]  = self.out_var.get().strip()
-        _guardar_json(CONFIG_FILE, self.cfg)
-        self._log("✅ Configuración guardada")
+        if hasattr(self, "correo_informes_var"):
+            self.cfg["ruta_correo_informes"] = self.correo_informes_var.get().strip()
+            self.cfg["ruta_correo_espera"] = self.correo_espera_var.get().strip()
+        try:
+            _guardar_json(CONFIG_FILE, self.cfg)
+        except OSError as exc:
+            self._log(f"❌ No se pudo guardar la configuración: {exc}", TAG_ERR)
+            messagebox.showerror("Configuración", str(exc))
+            return
+        self._log(f"✅ Configuración guardada: {CONFIG_FILE}")
+        self._audit("configuracion_guardada")
 
     def _open_out(self):
         p = self.out_var.get().strip()
         if p and Path(p).exists():
-            os.startfile(p)
+            if not hasattr(os, "startfile"):
+                messagebox.showwarning(
+                    "Abrir carpeta",
+                    "La apertura automática de carpetas está disponible en Windows.",
+                )
+                return
+            try:
+                os.startfile(p)
+            except OSError as exc:
+                messagebox.showerror("Abrir carpeta", str(exc))
         else:
             messagebox.showwarning("Aviso", "La carpeta de salida no existe.")
 
@@ -437,32 +509,32 @@ class RUSApp(tk.Tk):
 
     def _start_motor(self, modo):
         if self.running: return
-        if not self.in_var.get().strip():
+        path = self.in_var.get().strip()
+        salida = self.out_var.get().strip()
+        if not path:
             messagebox.showerror("Falta configuración", "Selecciona el archivo Excel de entrada.")
             return
+        if not salida:
+            messagebox.showerror("Falta configuración", "Selecciona la carpeta de salida.")
+            return
+        cfg = self.cfg.copy()
+        # La selección visible debe regir esta ejecución aunque el usuario
+        # todavía no haya persistido la configuración.
+        cfg["ruta_entrada_excel"] = path
+        cfg["ruta_salida_excel"] = salida
         self.running = True
         self.pb["value"] = 0
         self._set_motor_btns("disabled")
         self.status.set(f"Procesando {modo}…")
-        threading.Thread(target=self._worker_motor, args=(modo,), daemon=True).start()
+        threading.Thread(target=self._worker_motor,
+                         args=(modo, path, cfg), daemon=True).start()
 
-    def _worker_motor(self, modo):
+    def _worker_motor(self, modo, path, cfg):
         try:
             self.q.put(("progress", 5))
-            path = self.in_var.get().strip()
-            if modo == "CUMPLIMIENTO":
-                self.q.put(("log", f"📂 Cargando archivo para {modo}…"))
-                self.q.put(("progress", 20))
-                procesar(path, modo, self.cfg, self.q)
-            else:
-                self.q.put(("log", f"📂 Cargando Excel para {modo}…"))
-                engine = "xlrd" if path.endswith(".xls") else "openpyxl"
-                df = pd.read_excel(path, engine=engine)
-                df.columns = [str(x).strip() for x in df.columns]
-                df = df.dropna(how="all").fillna("")
-                self.q.put(("log", f"✓ {len(df)} filas cargadas"))
-                self.q.put(("progress", 20))
-                procesar(df, modo, self.cfg, self.q)
+            self.q.put(("log", f"📂 Cargando archivo para {modo}…"))
+            self.q.put(("progress", 20))
+            procesar(path, modo, cfg, self.q)
         except Exception as e:
             self.q.put(("done", f"❌ Error inesperado: {e}"))
 
@@ -473,7 +545,12 @@ class RUSApp(tk.Tk):
         self.status.set("Listo")
         tag = TAG_ERR if msg.startswith("❌") else TAG_DONE
         self._log(msg.split("\n")[0], tag)
-        messagebox.showinfo("Proceso finalizado", msg)
+        exito = not msg.startswith("❌")
+        self._audit("motor_finalizado", exito=exito)
+        if exito:
+            messagebox.showinfo("Proceso finalizado", msg)
+        else:
+            messagebox.showerror("Proceso cancelado", msg)
 
     # ── TAB 1: Vista previa (S3 — v8.14) ─────────────────────────────────────
 
@@ -490,6 +567,7 @@ class RUSApp(tk.Tk):
             messagebox.showerror("Falta configuración", "Selecciona el archivo Excel de entrada.")
             return
         self.status.set(f"Generando vista previa {modo}…")
+        self.running = True
         self._set_preview_btns("disabled")
         threading.Thread(target=self._worker_preview, args=(modo, path), daemon=True).start()
 
@@ -503,6 +581,7 @@ class RUSApp(tk.Tk):
     def _on_preview_ready(self, data):
         df, modo, err = data
         self.status.set("Listo")
+        self.running = False
         self._set_preview_btns("normal")
         if err:
             messagebox.showerror("Vista previa", f"No se pudo generar la vista previa:\n{err}")
@@ -561,8 +640,12 @@ class RUSApp(tk.Tk):
     def _actualizar_badge_pendientes(self):
         try:
             n = contar_pendientes()
-        except Exception:
+        except Exception as exc:
             n = "?"
+            self._audit(
+                "catalogo_no_disponible",
+                error_tipo=type(exc).__name__,
+            )
         self._pendientes_var.set(f"📋  Textos pendientes de confirmación: {n}")
 
     def _exportar_textos_pendientes(self):
@@ -582,6 +665,12 @@ class RUSApp(tk.Tk):
         messagebox.showinfo("Exportado", f"{n} textos pendientes exportados.\n\n{destino}")
 
     def _importar_textos_confirmados(self):
+        if self.running:
+            messagebox.showwarning(
+                "Proceso en ejecución",
+                "Espera a que termine la tarea actual antes de importar reglas.",
+            )
+            return
         origen = filedialog.askopenfilename(
             title="Importar confirmaciones",
             filetypes=[("Excel", "*.xlsx"), ("Todos", "*.*")])
@@ -589,7 +678,7 @@ class RUSApp(tk.Tk):
             return
         if not messagebox.askyesno(
                 "Confirmar importación",
-                "Esto va a modificar motor/textos_observaciones.json.\n"
+                f"Esto va a modificar el catálogo persistente:\n{ruta_catalogo_textos()}\n\n"
                 "Se creará un respaldo automático con timestamp antes de "
                 "escribir.\n\n¿Continuar?"):
             return
@@ -608,13 +697,20 @@ class RUSApp(tk.Tk):
             f"{len(resumen['confirmados'])} confirmados, "
             f"{len(resumen['actualizados'])} textos actualizados. "
             f"Backup: {resumen['backup']}", TAG_OK)
+        self._audit(
+            "catalogo_importado",
+            actualizados=len(resumen["actualizados"]),
+            confirmados=len(resumen["confirmados"]),
+            errores=len(resumen["errores"]),
+        )
+        backup_texto = resumen["backup"] or "No fue necesario crear respaldo (sin cambios)."
         messagebox.showinfo(
             "Importación completada",
             f"Actualizados: {len(resumen['actualizados'])}\n"
             f"Confirmados: {len(resumen['confirmados'])}\n"
             f"Sin cambios: {len(resumen['sin_cambios'])}\n"
             f"Errores: {len(resumen['errores'])}\n\n"
-            f"Backup del JSON previo:\n{resumen['backup']}")
+            f"Backup del JSON previo:\n{backup_texto}")
 
     # ── TAB 2: Correos jobs ───────────────────────────────────────────────────
 
@@ -622,39 +718,54 @@ class RUSApp(tk.Tk):
         for b in self._correo_btns: b["state"] = state
 
     def _run_correos_informes(self):
-        path = self.correo_in_var.get().strip()
+        if self.running:
+            return
+        path = self.correo_informes_var.get().strip()
         if not path:
             messagebox.showerror("Falta archivo", "Selecciona el Excel de entrada.")
             return
         self._set_correo_btns("disabled")
+        self.running = True
         self.status.set("Generando borradores de correos (informes)…")
         threading.Thread(target=self._worker_correos,
-                         args=(path, "informes"), daemon=True).start()
+                         args=(path, "informes", self.cfg.copy()), daemon=True).start()
 
     def _run_correos_espera(self):
-        path = self.correo_in_var.get().strip()
+        if self.running:
+            return
+        path = self.correo_espera_var.get().strip()
         if not path:
             messagebox.showerror("Falta archivo", "Selecciona el Excel de entrada.")
             return
         self._set_correo_btns("disabled")
+        self.running = True
         self.status.set("Generando borradores de correos (espera)…")
         threading.Thread(target=self._worker_correos,
-                         args=(path, "espera"), daemon=True).start()
+                         args=(path, "espera", self.cfg.copy()), daemon=True).start()
 
-    def _worker_correos(self, path, tipo):
-        txt = self.txt_correos
+    def _finish_correos(self, resultado):
+        self.running = False
+        self._set_correo_btns("normal")
+        self.status.set("Listo")
+        if resultado.get("error"):
+            messagebox.showerror("Correos", resultado["error"])
+        else:
+            messagebox.showinfo("Correos generados", resultado["resumen"])
+
+    def _worker_correos(self, path, tipo, cfg):
         try:
             from comunicaciones.generador_correos import GeneradorCorreos
-            self._write(txt, f"📂 Cargando {path}…", TAG_INFO)
+            self.q.put(("log_correos", f"📂 Cargando {path}…"))
 
-            engine = "xlrd" if path.endswith(".xls") else "openpyxl"
-            df = pd.read_excel(path, engine=engine)
+            path_validado = validar_archivo_excel(path)
+            engine = "xlrd" if path_validado.suffix.lower() == ".xls" else "openpyxl"
+            df = pd.read_excel(path_validado, engine=engine)
             df.columns = [str(x).strip() for x in df.columns]
             df = df.dropna(how="all").fillna("")
-            self._write(txt, f"✓ {len(df)} filas cargadas", TAG_INFO)
+            self.q.put(("log_correos", f"✓ {len(df)} filas cargadas"))
 
             catastro = str(_ROOT / "comunicaciones" / "catastro_programas.json")
-            gen = GeneradorCorreos(self.cfg, catastro, self.contactos)
+            gen = GeneradorCorreos(cfg, catastro)
 
             if tipo == "informes":
                 resultado = gen.procesar(df)
@@ -665,32 +776,44 @@ class RUSApp(tk.Tk):
             errores = resultado.get("errores", [])
             sin_ctc = resultado.get("grupos_sin_contacto", [])
 
-            self._write(txt, f"✅ Borradores creados: {creados}", TAG_OK)
+            self.q.put(("log_correos", f"✅ Borradores creados: {creados}"))
             for e in errores:
-                self._write(txt, f"⚠️  {e}", TAG_WARN)
+                self.q.put(("log_correos", f"⚠️  {e}"))
             for s in sin_ctc:
-                self._write(txt, f"⚠️  Sin contacto: {s}", TAG_WARN)
+                self.q.put(("log_correos", f"⚠️  {s}"))
+
+            self._audit(
+                "correos_finalizados",
+                tipo=tipo,
+                borradores=creados,
+                errores=len(errores),
+                sin_contacto=len(sin_ctc),
+            )
 
             resumen = f"Correos ({tipo}) completado.\n{creados} borradores en Outlook Drafts."
             if errores:
                 resumen += f"\n{len(errores)} advertencias."
-            self.status.set("Listo")
-            messagebox.showinfo("Correos generados", resumen)
+            bloqueado = creados == 0 and (errores or sin_ctc)
+            error = None
+            if bloqueado:
+                motivos = errores or sin_ctc
+                error = "No se creó ningún borrador. " + " | ".join(motivos[:3])
+            self.q.put(("done_correos", {"resumen": resumen, "error": error}))
 
         except ImportError:
-            self._write(txt, "❌ pywin32 no instalado. Ejecuta: pip install pywin32", TAG_ERR)
-            messagebox.showerror("Dependencia faltante",
-                "Se requiere pywin32 y Outlook instalado.\npip install pywin32")
+            error = "Se requiere pywin32 y Outlook instalado.\npip install pywin32"
+            self.q.put(("log_correos", f"❌ {error}"))
+            self.q.put(("done_correos", {"resumen": "", "error": error}))
         except Exception as e:
-            self._write(txt, f"❌ Error: {e}", TAG_ERR)
-            messagebox.showerror("Error", str(e))
-        finally:
-            self._set_correo_btns("normal")
-            self.status.set("Listo")
+            self._audit("correos_fallidos", tipo=tipo, error_tipo=type(e).__name__)
+            self.q.put(("log_correos", f"❌ Error: {e}"))
+            self.q.put(("done_correos", {"resumen": "", "error": str(e)}))
 
     # ── TAB 3: Resoluciones jobs ──────────────────────────────────────────────
 
     def _run_resoluciones(self):
+        if self.running:
+            return
         excel  = self.res_excel_var.get().strip()
         salida = self.res_salida_var.get().strip()
         if not excel:
@@ -700,47 +823,96 @@ class RUSApp(tk.Tk):
             messagebox.showerror("Falta carpeta", "Selecciona la carpeta de salida.")
             return
         self._res_btn["state"] = "disabled"
+        self.running = True
         self.status.set("Generando resoluciones .docx…")
         threading.Thread(target=self._worker_resoluciones,
                          args=(excel, salida), daemon=True).start()
 
     def _worker_resoluciones(self, excel, salida):
-        txt = self.txt_resoluciones
         try:
-            from resoluciones.generador_resoluciones import generar_resoluciones
-            self._write(txt, f"📂 Procesando {Path(excel).name}…", TAG_INFO)
+            from resoluciones.generador_resoluciones import (
+                generar_informe_faltantes,
+                generar_resoluciones,
+            )
+            self.q.put(("log_resoluciones", f"📂 Procesando {Path(excel).name}…"))
 
             resultado = generar_resoluciones(excel, salida)
 
             arch     = resultado.get("archivo_generado")
             total    = resultado.get("total_resoluciones", 0)
+            omitidas = resultado.get("omitidas", 0)
+            fallidas = resultado.get("fallidas", 0)
             faltantes = resultado.get("faltantes", [])
             errores  = resultado.get("errores", [])
 
             if arch:
-                self._write(txt, f"✅ Word generado: {Path(arch).name}", TAG_OK)
-                self._write(txt, f"📁 {arch}", TAG_OK)
-            self._write(txt, f"✓ Resoluciones generadas: {total}", TAG_INFO)
+                self.q.put(("log_resoluciones", f"✅ Word generado: {Path(arch).name}"))
+                self.q.put(("log_resoluciones", f"📁 {arch}"))
+            self.q.put(("log_resoluciones", f"✓ Resoluciones generadas: {total}"))
+
+            informe_faltantes = None
+            if faltantes:
+                try:
+                    informe_faltantes = generar_informe_faltantes(faltantes, salida)
+                except Exception as exc:  # el Word válido no se descarta por este reporte
+                    errores.append(f"No se pudo guardar el informe de omitidas: {exc}")
+                if informe_faltantes:
+                    self.q.put((
+                        "log_resoluciones",
+                        f"📋 Informe de omitidas: {informe_faltantes}",
+                    ))
 
             for f in faltantes:
-                self._write(txt,
-                    f"⚠️  Sin plantilla — RIT {f.get('rit','?')} "
-                    f"({f.get('tipo','?')} {f.get('tribunal','?')})", TAG_WARN)
+                self.q.put(("log_resoluciones",
+                    f"⚠️  Resolución omitida — fila {f.get('fila_excel','?')} "
+                    f"({f.get('tipo','?')} {f.get('tribunal','?')})"))
             for e in errores:
-                self._write(txt, f"⚠️  {e}", TAG_WARN)
+                self.q.put(("log_resoluciones", f"⚠️  {e}"))
+
+            self._audit(
+                "resoluciones_finalizadas",
+                generadas=total,
+                omitidas=omitidas,
+                fallidas=fallidas,
+                errores=len(errores),
+            )
+
+            if not arch:
+                detalle = errores[0] if errores else "No se generó ningún documento."
+                self.q.put(("done_resoluciones", {
+                    "resumen": "",
+                    "error": f"No se generó el Word. {detalle}",
+                }))
+                return
 
             resumen = f"Resoluciones completadas.\n{total} generadas."
-            if faltantes:
-                resumen += f"\n{len(faltantes)} sin plantilla (ver bitácora)."
-            messagebox.showinfo("Resoluciones generadas", resumen)
+            if omitidas:
+                resumen += f"\n{omitidas} omitidas (ver bitácora/informe)."
+            if fallidas:
+                resumen += f"\n{fallidas} fallidas."
+            if errores:
+                resumen += f"\n{len(errores)} advertencias o errores."
+            self.q.put(("done_resoluciones", {"resumen": resumen, "error": None}))
 
         except Exception as e:
-            self._write(txt, f"❌ Error: {e}", TAG_ERR)
-            messagebox.showerror("Error", str(e))
-        finally:
-            self._res_btn["state"] = "normal"
-            self.status.set("Listo")
+            self._audit("resoluciones_fallidas", error_tipo=type(e).__name__)
+            self.q.put(("log_resoluciones", f"❌ Error: {e}"))
+            self.q.put(("done_resoluciones", {"resumen": "", "error": str(e)}))
+
+    def _finish_resoluciones(self, resultado):
+        self.running = False
+        self._res_btn["state"] = "normal"
+        self.status.set("Listo")
+        if resultado.get("error"):
+            messagebox.showerror("Resoluciones", resultado["error"])
+        else:
+            messagebox.showinfo("Resoluciones generadas", resultado["resumen"])
+
+
+def main():
+    """Punto de entrada de la aplicación de escritorio."""
+    RUSApp().mainloop()
 
 
 if __name__ == "__main__":
-    RUSApp().mainloop()
+    main()

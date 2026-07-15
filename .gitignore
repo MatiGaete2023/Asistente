@@ -16,7 +16,24 @@ motor/textos_observaciones.backup_*.json
 build/
 dist/
 *.spec
+!Asistente_RUS.spec
+
+# Herramientas de calidad
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.idea/
+.vscode/
 
 # Salidas locales
 salida/
 *.log
+*.xls
+*.xlsx
+*.xlsm
+*.docx
+validacion_*.html
+
+# Los fixtures sintéticos de tests SÍ se versionan
+!tests/fixtures/*.xlsx

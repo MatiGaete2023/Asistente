@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Reglas de validación Fase 1 — CSMP Assistant v8.0
+Reglas de validación — CSMP Assistant v9.0.1
 
 Cada función recibe (df, cols, modo) y retorna dict:
 {
@@ -14,32 +14,48 @@ O None si la regla no se dispara.
 """
 
 from datetime import datetime
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from motor.utilidades import normalizar, detectar_tribunal, get_date, get_int
+from motor.columnas_comunes import (
+    ALIAS_DIAS_CUMPLIMIENTO,
+    ALIAS_DIAS_EGRESO,
+    ALIAS_EGRESO_PROYECTADO,
+    ALIAS_ESPERA,
+    ALIAS_FICHA_FAE,
+    ALIAS_FICHA_INDIVIDUAL,
+    ALIAS_INGRESO_EFECTIVO,
+    ALIAS_NACIMIENTO,
+    ALIAS_NOMBRE as ALIASES_NOMBRE,
+    ALIAS_PROGRAMA as ALIASES_DERIVACION,
+    ALIAS_RESOLUCION,
+    ALIAS_RIT,
+    ALIAS_TRIBUNAL as ALIASES_TRIBUNAL,
+    ALIAS_VENCIMIENTO,
+)
 
 
 # ── Columnas mínimas por modo ─────────────────────────────────────────────────
 
-COLS_MINIMAS = {
-    "ESPERA":        ["DERIVACION", "TRIBUNAL", "NOMBRE"],
-    "CUMPLIMIENTO":  ["DERIVACION", "TRIBUNAL", "NOMBRE"],
-    "INFORMES":      ["DERIVACION", "TRIBUNAL", "NOMBRE"],
-}
-
-COLS_CRITICAS_VACIAS = {
-    "ESPERA":       ["DERIVACION", "TRIBUNAL", "NOMBRE"],
-    "CUMPLIMIENTO": ["DERIVACION", "TRIBUNAL", "NOMBRE", "FEC.INGRESO EFECTIVO"],
-    "INFORMES":     ["DERIVACION", "TRIBUNAL", "NOMBRE", "FECHA VENCIMIENTO",
-                     "FEC.VENCIMIENTO", "FEC. VENCIMIENTO"],
-}
-
-ALIASES_TRIBUNAL   = ["TRIBUNAL"]
-ALIASES_DERIVACION = ["DERIVACION", "DERIVACIÓN", "PROGRAMA"]
-ALIASES_NOMBRE     = ["NOMBRE", "NOMBRE COMPLETO"]
-ALIASES_NACIMIENTO = ["FEC. NACIMIENTO", "FEC.NACIMIENTO", "FECHA NACIMIENTO", "FEC NACIMIENTO"]
+ALIASES_NACIMIENTO = ALIAS_NACIMIENTO
 ALIASES_EDAD       = ["EDAD"]
+ALIASES_RIT        = ALIAS_RIT
+
+REQUERIDAS_POR_MODO = {
+    "ESPERA": {
+        "tiempo_espera": ALIAS_ESPERA,
+        "fecha_resolucion": ALIAS_RESOLUCION,
+    },
+    "CUMPLIMIENTO": {
+        "dias_cumplimiento": ALIAS_DIAS_CUMPLIMIENTO,
+        "dias_egreso": ALIAS_DIAS_EGRESO,
+        "fecha_ingreso": ALIAS_INGRESO_EFECTIVO,
+        "fecha_egreso": ALIAS_EGRESO_PROYECTADO,
+        "ficha_individual": ALIAS_FICHA_INDIVIDUAL,
+        "ficha_fae": ALIAS_FICHA_FAE,
+    },
+    "INFORMES": {
+        "fecha_vencimiento": ALIAS_VENCIMIENTO,
+    },
+}
 
 
 def _col_match(df, aliases):
@@ -58,10 +74,12 @@ def _col_match(df, aliases):
 
 def a1_columnas_minimas(df, modo):
     requeridas = {
+        "rit":        ALIASES_RIT,
         "derivacion": ALIASES_DERIVACION,
         "tribunal":   ALIASES_TRIBUNAL,
         "nombre":     ALIASES_NOMBRE,
     }
+    requeridas.update(REQUERIDAS_POR_MODO.get(modo.upper(), {}))
     faltantes = []
     for clave, aliases in requeridas.items():
         if _col_match(df, aliases) is None:
@@ -153,30 +171,27 @@ def a3_derivacion_vacia(df, modo):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def a4_fechas_futuras(df, modo):
-    COLS_FECHA = [
-        "FEC.INGRESO EFECTIVO", "FEC. INGRESO EFECTIVO", "FEC INGRESO EFECTIVO",
-        "FECHA VENCIMIENTO",    "FEC.VENCIMIENTO",        "FEC. VENCIMIENTO",
-        "FEC.EGRESO PROYECTADO","FEC. EGRESO PROYECTADO",
-        "FEC. NACIMIENTO",      "FEC.NACIMIENTO",
+    GRUPOS_NO_FUTUROS = [
+        ["FEC.INGRESO EFECTIVO", "FEC. INGRESO EFECTIVO", "FEC INGRESO EFECTIVO"],
+        ["FEC. NACIMIENTO", "FEC.NACIMIENTO", "FECHA NACIMIENTO", "FEC NACIMIENTO"],
     ]
     hoy = datetime.now()
     afectadas = []
+    revisadas = set()
 
-    for alias in COLS_FECHA:
-        col = _col_match(df, [alias])
-        if col is None:
+    for aliases in GRUPOS_NO_FUTUROS:
+        col = _col_match(df, aliases)
+        if col is None or col in revisadas:
             continue
+        revisadas.add(col)
         for idx, val in df[col].items():
             fecha = get_date(val)
             if fecha is None:
                 continue
-            # Solo checar ingreso efectivo y nacimiento como "no deben ser futuras"
-            if alias in ["FEC.INGRESO EFECTIVO", "FEC. INGRESO EFECTIVO",
-                         "FEC INGRESO EFECTIVO", "FEC. NACIMIENTO", "FEC.NACIMIENTO"]:
-                if fecha > hoy:
-                    col_rit = _col_match(df, ["RIT", "N° RIT"])
-                    rit = str(df.at[idx, col_rit]).strip() if col_rit else f"fila {idx + 2}"
-                    afectadas.append(f"{rit} — {col}: {fecha.strftime('%d/%m/%Y')}")
+            if fecha > hoy:
+                col_rit = _col_match(df, ALIASES_RIT)
+                rit = str(df.at[idx, col_rit]).strip() if col_rit else f"fila {idx + 2}"
+                afectadas.append(f"{rit} — {col}: {fecha.strftime('%d/%m/%Y')}")
 
     if not afectadas:
         return None
@@ -316,8 +331,8 @@ def a8_tribunal_no_reconocido(df, modo):
 
     for idx, row in df.iterrows():
         val = str(row[col]).strip()
-        if val in ("", "nan", "None"):
-            continue
+        if val.lower() in ("", "nan", "none", "nat"):
+            continue  # A9 bloquea vacíos con un mensaje específico.
         if detectar_tribunal(val) is None:
             rit = str(row[col_rit]).strip() if col_rit else f"fila {idx + 2}"
             afectadas.append(f"{rit} — TRIBUNAL: '{val}'")
@@ -327,8 +342,78 @@ def a8_tribunal_no_reconocido(df, modo):
 
     return {
         "id": "A8",
-        "severidad": "ADVIERTE",
+        "severidad": "BLOQUEA",
         "descripcion": "Valor de tribunal no reconocido (no es LAJA/MULCHEN/TOME)",
         "detalle": afectadas[:20],
         "count": len(afectadas),
+    }
+
+
+def a9_campos_identificacion_vacios(df, modo):
+    """BLOQUEA filas que no pueden identificarse o enrutarse con seguridad."""
+    campos = {
+        "RIT": ALIASES_RIT,
+        "NOMBRE": ALIASES_NOMBRE,
+        "TRIBUNAL": ALIASES_TRIBUNAL,
+    }
+    afectados = []
+    total_afectados = 0
+    for etiqueta, aliases in campos.items():
+        col = _col_match(df, aliases)
+        if col is None:
+            continue  # A1 ya informa la columna ausente.
+        vacios = df[col].isna() | df[col].astype(str).str.strip().str.lower().isin(
+            ["", "nan", "none", "nat"])
+        total_afectados += int(vacios.sum())
+        for idx in df.index[vacios][:20]:
+            afectados.append(f"fila {idx + 2} — {etiqueta} vacío")
+
+    if total_afectados == 0:
+        return None
+    return {
+        "id": "A9",
+        "severidad": "BLOQUEA",
+        "descripcion": "Campos de identificación o enrutamiento vacíos",
+        "detalle": afectados[:20],
+        "count": total_afectados,
+    }
+
+
+def a10_valores_operativos_invalidos(df, modo):
+    """BLOQUEA valores sin los cuales una regla principal no puede decidir."""
+    modo = modo.upper()
+    afectados = []
+
+    if modo == "ESPERA":
+        col = _col_match(df, REQUERIDAS_POR_MODO[modo]["tiempo_espera"])
+        if col:
+            for idx, valor in df[col].items():
+                dias = get_int(valor)
+                if dias is None or dias < 0:
+                    afectados.append(f"fila {idx + 2} — {col}: valor inválido")
+
+    elif modo == "CUMPLIMIENTO":
+        for clave in ("dias_cumplimiento", "dias_egreso"):
+            col = _col_match(df, REQUERIDAS_POR_MODO[modo][clave])
+            if not col:
+                continue
+            for idx, valor in df[col].items():
+                if get_int(valor) is None:
+                    afectados.append(f"fila {idx + 2} — {col}: valor inválido")
+
+    elif modo == "INFORMES":
+        col = _col_match(df, REQUERIDAS_POR_MODO[modo]["fecha_vencimiento"])
+        if col:
+            for idx, valor in df[col].items():
+                if get_date(valor) is None:
+                    afectados.append(f"fila {idx + 2} — {col}: fecha inválida")
+
+    if not afectados:
+        return None
+    return {
+        "id": "A10",
+        "severidad": "BLOQUEA",
+        "descripcion": "Valores operativos ausentes o inválidos",
+        "detalle": afectados[:20],
+        "count": len(afectados),
     }

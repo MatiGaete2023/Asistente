@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.lock
+      - name: Install
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.lock
+      - name: Compile
+        run: python -m compileall -q .
+      - name: Test
+        run: python -m pytest -q
+
+  windows-bundle:
+    runs-on: windows-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.lock
+      - name: Install build dependencies
+        run: python -m pip install -r requirements.lock pyinstaller==6.14.2
+      - name: Build one-file executable
+        run: pyinstaller --clean --noconfirm Asistente_RUS.spec
+      - name: Verify executable
+        shell: pwsh
+        run: if (-not (Test-Path "dist/Asistente_RUS.exe")) { throw "Executable missing" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Asistente_RUS-windows
+          path: dist/Asistente_RUS.exe
+          if-no-files-found: error

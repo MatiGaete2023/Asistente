@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-motor/utilidades.py — v8.6
+motor/utilidades.py — v9.0.1
 Optimizaciones:
   CLAIM-1: relativedelta importado a nivel de módulo (no dentro de función)
   CLAIM-2: regex pre-compiladas a nivel de módulo
@@ -9,9 +9,11 @@ Optimizaciones:
 
 import re
 import unicodedata
+import math
+import zipfile
 from datetime import datetime
+from pathlib import Path
 import pandas as pd
-from dateutil.relativedelta import relativedelta   # CLAIM-1: nivel módulo
 
 _PREPOSICIONES  = {"de", "del", "los", "las", "y", "en", "el", "la", "por", "con", "a"}
 _VALORES_VACIOS = {"", "---", "-", "nan", "nat", "none"}
@@ -31,6 +33,7 @@ _ESPACIOS_RE     = re.compile(r'\s+')
 _GUIONES_RE      = re.compile(r'[-().]+')
 _NO_LETRAS_RE    = re.compile(r'[^a-zA-ZáéíóúÁÉÍÓÚüÜñÑ]')
 _SEP_PROG_RE     = re.compile(r'[\s\-]+')
+_EXTENSIONES_EXCEL = {".xls", ".xlsx", ".xlsm"}
 
 
 # ── fechas ────────────────────────────────────────────────────────────────────
@@ -42,7 +45,7 @@ def fecha_es(fecha=None):
     else:
         try:
             h = pd.to_datetime(fecha)
-        except Exception:
+        except (OverflowError, TypeError, ValueError):
             return str(fecha)
     return f"{h.day} de {_MESES[h.month]} de {h.year}"
 
@@ -77,11 +80,46 @@ def normalizar_match(txt):
     try:
         if pd.isna(txt):
             return ""
-    except Exception:
+    except (TypeError, ValueError):
         pass
+    # G-08: conservar EXACTAMENTE la normalización histórica del cruce Hoja2
+    # (sin quitar tildes ni guiones — cambiarla altera qué filas matchean).
     s = _PAREN_RE.sub('', str(txt))
     s = _PAREN_SUELTO_RE.sub('', s)
     return _ESPACIOS_RE.sub(' ', s.strip().lower())
+
+
+def es_texto_formula(valor) -> bool:
+    """True si openpyxl interpretaría el valor como fórmula al escribirlo.
+
+    Solo el prefijo '=' se convierte en fórmula en un .xlsx generado por
+    openpyxl. No se altera el valor (el viejo prefijo apóstrofe corrompía
+    placeholders legítimos como '---'): el guardado fuerza data_type='s'.
+    """
+    return isinstance(valor, str) and valor.lstrip().startswith("=")
+
+
+def validar_archivo_excel(ruta, *, max_bytes=100 * 1024 * 1024,
+                          max_descomprimido=200 * 1024 * 1024) -> Path:
+    """Valida tipo y límites básicos antes de abrir un Excel seleccionado."""
+    path = Path(ruta).expanduser()
+    if not path.is_file():
+        raise FileNotFoundError(f"Archivo Excel no encontrado: {path}")
+    if path.suffix.lower() not in _EXTENSIONES_EXCEL:
+        raise ValueError(f"Extensión Excel no permitida: {path.suffix or '(sin extensión)'}")
+    if path.stat().st_size > max_bytes:
+        raise ValueError("El archivo Excel supera el tamaño máximo permitido")
+
+    if path.suffix.lower() in {".xlsx", ".xlsm"}:
+        if not zipfile.is_zipfile(path):
+            raise ValueError("El archivo no es un libro XLSX/XLSM válido")
+        with zipfile.ZipFile(path) as archivo:
+            miembros = archivo.infolist()
+            if len(miembros) > 10_000:
+                raise ValueError("El libro Excel contiene demasiados componentes")
+            if sum(miembro.file_size for miembro in miembros) > max_descomprimido:
+                raise ValueError("El contenido descomprimido del Excel supera el límite")
+    return path
 
 
 def titulo_programa(txt):
@@ -147,6 +185,13 @@ def detectar_tribunal(valor):
     return None
 
 
+def contiene_token(texto, *tokens) -> bool:
+    """Compara tokens normalizados por palabra completa."""
+    norm = normalizar(texto)
+    palabras = set(re.findall(r"[a-z0-9]+", norm))
+    return any(normalizar(t) in palabras for t in tokens)
+
+
 def es_dce(txt):
     if not txt: return False
     t = normalizar(txt).upper()
@@ -154,9 +199,14 @@ def es_dce(txt):
 
 
 def es_derivacion_sin_seg(txt):
-    if not txt: return False
-    t = normalizar(txt).upper()
-    return any(x in t for x in ("OPD", "DAM", "RED SALUD", "CONSULTA EXTERNA"))
+    if not txt:
+        return False
+    norm = normalizar(txt)
+    patrones = (
+        "opd", "dam", "salud privada", "hospital", "unidad de salud mental",
+        "cesfam", "red salud", "consulta externa", "colegio", "chile crece contigo",
+    )
+    return any(re.search(rf"^{re.escape(p)}(?:\b|$)", norm) for p in patrones)
 
 
 def tiene_curador_real(val) -> bool:
@@ -210,8 +260,12 @@ def get_int(val):
     if s in _VALORES_VACIOS: return None
     try:
         num = pd.to_numeric(s, errors="coerce")
-        return None if pd.isna(num) else int(num)
-    except (ValueError, TypeError):
+        if pd.isna(num) or not math.isfinite(float(num)):
+            return None
+        if not float(num).is_integer():
+            return None
+        return int(num)
+    except (OverflowError, ValueError, TypeError):
         return None
 
 
@@ -234,26 +288,3 @@ def get_date(val):
         return pd.to_datetime(s, dayfirst=True)
     except (ValueError, TypeError):
         return None
-
-
-def proximo_informe(fec_ingreso, fec_egreso_proy, tribunal):
-    """Próxima fecha de informe dentro de 30 días, o None."""
-    if not fec_ingreso:
-        return None
-    # CLAIM-1: relativedelta ya importado a nivel de módulo
-    meses  = (4, 8, 12, 16, 20) if normalizar(tribunal).upper() == "TOME" else (3, 6, 9, 12, 15, 18)
-    hoy    = datetime.now().date()
-    egreso = (fec_egreso_proy.date()
-              if fec_egreso_proy and hasattr(fec_egreso_proy, "date")
-              else fec_egreso_proy)
-    for m in meses:
-        fi = fec_ingreso + relativedelta(months=m)
-        if isinstance(fi, datetime):
-            fi = fi.date()
-        dias = (fi - hoy).days
-        if not (0 < dias <= 30):
-            continue
-        if egreso and fi == egreso:
-            continue
-        return fi
-    return None

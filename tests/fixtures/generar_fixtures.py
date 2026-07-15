@@ -13,7 +13,7 @@ NO reflejan las cifras reales de produccion (16/100/333 filas). Sirven
 solo para verificar que el pipeline no crashea y que las reglas
 disparan sin errores estructurales. La regresion cuantitativa real
 (conteos exactos 16/100/333, diffs=0 vs baseline v8.13) SOLO puede
-correrse en la maquina de Matias con sus 4 Excel reales — ver
+correrse en una máquina autorizada con los tres Excel reales — ver
 tests/test_regresion.py para instrucciones (variables de entorno).
 
 Uso:
@@ -68,7 +68,7 @@ ESPERA_ROWS = [
     ("P-11-2026","10202020-2", "Camila Ortiz",  "LAJA",    "FAE Familia Sur",  "", "15", "13131313-1", "", "", 15),
     ("P-12-2026","10303030-3", "Ignacio Rios",  "MULCHEN", "PRM Esperanza",    "", "9", "14141414-1", d(20), "", 8),
     ("P-13-2026","10404040-4", "Fernanda Cruz", "TOME",    "RFA Amanecer",     "", "10", "(0-0) Institución: CAJ Biobío", "", "", 12),
-    ("P-14-2026","10505050-5", "Matias Leon",   "LAJA",    "RPPM Renacer",     "", "16", "15151515-1", "", d(2), 3),
+    ("P-14-2026","10505050-5", "Marco León",    "LAJA",    "RPPM Renacer",     "", "16", "15151515-1", "", d(2), 3),
     ("P-15-2026","10606060-6", "Isidora Silva", "MULCHEN", "PIE Renacer",      "", "7", "16161616-1", "", "", 2),
     ("P-16-2026","10707070-7", "Tomas Bravo",   "TOME",    "AFT Familia",      "", "6", "17171717-1", "", "", 61),
 ]
@@ -126,7 +126,7 @@ INFORMES_ROWS = [
     ("I-4-2026","30404040-4","Yasna Cortes",   "LAJA",   "RES Los Alamos",  d_fwd(60),  d(200)),
     ("I-5-2026","30505050-5","Ivan Espinoza",  "TOME",   "DCE Diagnostico", d_fwd(20),  d(100)),
     ("I-6-2026","30606060-6","Katherine Munoz","MULCHEN","DCE Diagnostico", d_fwd(5),   d(90)),
-    ("I-7-2026","30707070-7","Esteban Vargas", "LAJA",   "RTT Nueva Vida",  "",     d(150)),
+    ("I-7-2026","30707070-7","Esteban Vargas", "LAJA",   "RTT Nueva Vida",  d(2),   d(150)),
     ("I-8-2026","30808080-8","Barbara Sepulveda","TOME", "RFA Amanecer",    d(1),   d(250)),
     ("I-9-2026","30909090-9","Alvaro Contreras","MULCHEN","RPPM Renacer",   d(0),   d(180)),
     ("I-10-2026","31010101-0","Natalia Cabrera","LAJA",  "FAE Familia Sur", d_fwd(44),  d(220)),
@@ -152,6 +152,15 @@ def generar():
                   "FEC.ACT.F.RESIDENCIAL", "FEC.ACT.F.INDIVIDUAL",
                   "FEC.ACT.F.FAE", "DIAS PARA EGRESAR"]
     df_cumpl = _to_df(CUMPL_ROWS, cols_cumpl)
+    fechas_ingreso = pd.to_datetime(
+        df_cumpl["FEC.INGRESO EFECTIVO"], dayfirst=True, errors="coerce")
+    dias_cumplimiento = fechas_ingreso.apply(
+        lambda fecha: (HOY.date() - fecha.date()).days if pd.notna(fecha) else "")
+    df_cumpl.insert(
+        df_cumpl.columns.get_loc("FEC.INGRESO EFECTIVO"),
+        "DIAS DE CUMPLIMIENTO",
+        dias_cumplimiento,
+    )
     cols_h2 = ["RIT", "RUT MENOR", "NOMBRE MENOR", "TRIBUNAL",
                "NOMBRE CENTRO", "FECHA VENCIMIENTO"]
     df_h2 = _to_df(CUMPL_HOJA2_ROWS, cols_h2)

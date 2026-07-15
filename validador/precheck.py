@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-precheck.py — Validador pre-procesamiento CSMP Assistant v8.0
+precheck.py — Validador pre-procesamiento CSMP Assistant v9.0.1
 
 Función pública: validar_excel(df, modo, ruta_salida_reportes) → dict
 
@@ -26,12 +26,16 @@ from .reglas_validacion import (
     a6_edad_fuera_rango,
     a7_campos_vacios_masivos,
     a8_tribunal_no_reconocido,
+    a9_campos_identificacion_vacios,
+    a10_valores_operativos_invalidos,
 )
 from .reporte import imprimir_reporte, generar_html
 
 # Reglas bloqueantes ejecutadas en orden (se detiene solo si A1 bloquea col mínimas,
 # para evitar errores en cascada)
-_BLOQUEANTES = [a1_columnas_minimas, a2_rit_duplicados, a3_derivacion_vacia]
+_BLOQUEANTES = [a1_columnas_minimas, a2_rit_duplicados, a3_derivacion_vacia,
+                a8_tribunal_no_reconocido, a9_campos_identificacion_vacios,
+                a10_valores_operativos_invalidos]
 
 # Reglas de advertencia (todas se ejecutan siempre)
 _ADVERTENCIAS = [
@@ -39,7 +43,6 @@ _ADVERTENCIAS = [
     a5_edades_inconsistentes,
     a6_edad_fuera_rango,
     a7_campos_vacios_masivos,
-    a8_tribunal_no_reconocido,
 ]
 
 
@@ -85,14 +88,14 @@ def validar_excel(df, modo: str, ruta_salida_reportes: str = None) -> dict:
         bloqueantes.append(a1)
         # Si faltan columnas mínimas, las demás reglas pueden crashear.
         # Solo ejecutamos A7 y A8 que no dependen de columnas específicas.
-        adv_seguras = [a7_campos_vacios_masivos, a8_tribunal_no_reconocido]
+        adv_seguras = [a7_campos_vacios_masivos]
         for fn in adv_seguras:
             r = fn(df, modo)
             if r:
                 advertencias.append(r)
     else:
         # A1 OK → ejecutar resto de bloqueantes
-        for fn in [a2_rit_duplicados, a3_derivacion_vacia]:
+        for fn in _BLOQUEANTES[1:]:
             r = fn(df, modo)
             if r:
                 bloqueantes.append(r)
