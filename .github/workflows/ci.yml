@@ -45,7 +45,7 @@ jobs:
       - name: Verify executable
         shell: pwsh
         run: if (-not (Test-Path "dist/Asistente_RUS.exe")) { throw "Executable missing" }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: Asistente_RUS-windows
           path: dist/Asistente_RUS.exe
