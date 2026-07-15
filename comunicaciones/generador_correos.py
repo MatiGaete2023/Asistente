@@ -22,7 +22,11 @@ from pathlib import Path
 import pandas as pd
 
 from .contactos_programas import CatastroContactos
-from motor.columnas_comunes import (normalizar, detectar_tribunal, titulo_programa, es_dce, obtener_col, ALIAS_RIT, ALIAS_TRIBUNAL, ALIAS_RUT, ALIAS_NOMBRE, ALIAS_PROGRAMA, ALIAS_VENCIMIENTO, ALIAS_ESPERA, TRIBUNAL_DISPLAY)
+from motor.columnas_comunes import (
+    normalizar, detectar_tribunal, titulo_programa, es_dce,
+    ALIAS_RIT, ALIAS_TRIBUNAL, ALIAS_RUT, ALIAS_NOMBRE, ALIAS_PROGRAMA,
+    ALIAS_VENCIMIENTO, ALIAS_ESPERA, TRIBUNAL_DISPLAY,
+)
 
 CC_FIJO = "ucc_concepcion@pjud.cl"
 DIAS_POR_VENCER = 30

@@ -2,7 +2,7 @@
 from datetime import datetime
 from .composicion import componer, prefijo, fecha_valida, Incidencias
 from .utilidades import (fecha_es, limpiar_nombre, normalizar, es_derivacion_sin_seg,
-    tiene_curador_real, get_int, calcular_edad_exacta, dias_para_mayoria, fecha_mayoria,
+    get_int, calcular_edad_exacta, dias_para_mayoria, fecha_mayoria,
     titulo_programa, contiene_token)
 from .textos import render
 from .reglas_espera import _complementarias, _curador_oido, _audiencia

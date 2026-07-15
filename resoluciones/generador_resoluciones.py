@@ -481,8 +481,8 @@ def generar_resoluciones(ruta_excel: str, ruta_salida: str) -> dict:
         tribunal_raw = str(row.get(cols["tribunal"] or "", "")).strip()
         tribunal     = detectar_tribunal(tribunal_raw)
 
-        def valor(key):
-            raw = row.get(cols[key], "") if cols.get(key) else ""
+        def valor(key, _row=row):  # bind explícito: evita capturar la variable del loop (B023)
+            raw = _row.get(cols[key], "") if cols.get(key) else ""
             return "" if pd.isna(raw) else str(raw).strip()
 
         # Flujo aprobado (Mejoras §2.1: SOLO se parchan las frases de

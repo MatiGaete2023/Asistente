@@ -2,6 +2,18 @@
 """Alias y utilidades compartidas entre motor y comunicaciones."""
 from .utilidades import normalizar, detectar_tribunal, titulo_programa, es_dce
 
+# Re-exports deliberados (Mejoras §1.9): comunicaciones/ importa las funciones
+# de formato/detección desde este módulo, no desde utilidades directamente.
+__all__ = [
+    "normalizar", "detectar_tribunal", "titulo_programa", "es_dce",
+    "obtener_col", "TRIBUNAL_DISPLAY",
+    "ALIAS_PROGRAMA", "ALIAS_TRIBUNAL", "ALIAS_NOMBRE", "ALIAS_RUT",
+    "ALIAS_RIT", "ALIAS_VENCIMIENTO", "ALIAS_ESPERA", "ALIAS_NACIMIENTO",
+    "ALIAS_RESOLUCION", "ALIAS_DIAS_CUMPLIMIENTO", "ALIAS_DIAS_EGRESO",
+    "ALIAS_INGRESO_EFECTIVO", "ALIAS_EGRESO_PROYECTADO",
+    "ALIAS_FICHA_FAE", "ALIAS_FICHA_INDIVIDUAL",
+]
+
 ALIAS_PROGRAMA = ["DERIVACION", "DERIVACIÓN", "PROGRAMA", "NOMBRE CENTRO"]
 ALIAS_TRIBUNAL = ["TRIBUNAL"]
 ALIAS_NOMBRE = ["NOMBRE", "NOMBRE COMPLETO", "NOMBRE MENOR"]
