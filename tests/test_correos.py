@@ -104,3 +104,12 @@ def test_no_existe_borrador_a_tribunal():
         [_fila_informes(_programa_real(), -10) for _ in range(3)]))
     assert resultado["borradores_creados"] == len(caps) == 1  # solo al programa
     assert not any("TRIBUNAL" in d for d in resultado["detalle"])
+
+
+def test_preflight_outlook_no_windows_informa_dry_run(monkeypatch):
+    from comunicaciones import outlook_preflight
+
+    monkeypatch.setattr(outlook_preflight.sys, "platform", "linux")
+    ok, mensaje = outlook_preflight.verificar_entorno_outlook()
+    assert not ok
+    assert "dry-run HTML" in mensaje

@@ -115,7 +115,6 @@ def test_render_refleja_cambio_sin_tocar_py(json_temporal, tmp_path, monkeypatch
     import motor.textos as textos_mod
 
     # Apuntar temporalmente el módulo real a la copia de prueba.
-    ruta_original = textos_mod._RUTA
     monkeypatch.setattr(textos_mod, "_RUTA", json_temporal)
     textos_mod._CACHE = None
 

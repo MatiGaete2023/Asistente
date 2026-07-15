@@ -137,7 +137,6 @@ def test_columnas_salida_v9_documentadas():
 
 
 def test_observaciones_sin_marcadores_v9():
-    import pandas as pd
     from motor.procesador import calcular_preview
 
     prohibidos = ("{", "}", "..", "ERROR", "None")

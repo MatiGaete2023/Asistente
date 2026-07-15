@@ -34,6 +34,8 @@ _GUIONES_RE      = re.compile(r'[-().]+')
 _NO_LETRAS_RE    = re.compile(r'[^a-zA-ZáéíóúÁÉÍÓÚüÜñÑ]')
 _SEP_PROG_RE     = re.compile(r'[\s\-]+')
 _EXTENSIONES_EXCEL = {".xls", ".xlsx", ".xlsm"}
+_MAX_FILAS_EXCEL = 50_000
+_MAX_COLUMNAS_EXCEL = 100
 
 
 # ── fechas ────────────────────────────────────────────────────────────────────
@@ -99,8 +101,29 @@ def es_texto_formula(valor) -> bool:
     return isinstance(valor, str) and valor.lstrip().startswith("=")
 
 
+def _validar_dimensiones_xlsx(path: Path, *, max_filas: int, max_columnas: int) -> None:
+    """Rechaza libros XLSX/XLSM con dimensiones incompatibles con el flujo RUS."""
+    from openpyxl import load_workbook
+
+    workbook = load_workbook(path, read_only=True, data_only=True)
+    try:
+        for hoja in workbook.worksheets:
+            filas = hoja.max_row or 0
+            columnas = hoja.max_column or 0
+            if filas > max_filas or columnas > max_columnas:
+                raise ValueError(
+                    f"El libro Excel supera el máximo permitido "
+                    f"({max_filas} filas / {max_columnas} columnas por hoja): "
+                    f"hoja {hoja.title!r} tiene {filas} filas y {columnas} columnas"
+                )
+    finally:
+        workbook.close()
+
+
 def validar_archivo_excel(ruta, *, max_bytes=100 * 1024 * 1024,
-                          max_descomprimido=200 * 1024 * 1024) -> Path:
+                          max_descomprimido=200 * 1024 * 1024,
+                          max_filas=_MAX_FILAS_EXCEL,
+                          max_columnas=_MAX_COLUMNAS_EXCEL) -> Path:
     """Valida tipo y límites básicos antes de abrir un Excel seleccionado."""
     path = Path(ruta).expanduser()
     if not path.is_file():
@@ -119,6 +142,7 @@ def validar_archivo_excel(ruta, *, max_bytes=100 * 1024 * 1024,
                 raise ValueError("El libro Excel contiene demasiados componentes")
             if sum(miembro.file_size for miembro in miembros) > max_descomprimido:
                 raise ValueError("El contenido descomprimido del Excel supera el límite")
+        _validar_dimensiones_xlsx(path, max_filas=max_filas, max_columnas=max_columnas)
     return path
 
 
