@@ -1,3 +1,16 @@
+## v9.1.0 — 2026-07-16 — Endurecimiento operativo (plan v9.1)
+
+Implementación Codex (PR #8) auditada y completada (detalle:
+`docs/auditoria/EVALUACION_INFORME_CODEX_20260715.md`, adenda 2-bis).
+
+- M1: límite defensivo de dimensiones Excel (50.000 filas / 100 columnas por hoja, prechequeo read-only).
+- M2: preflight de Outlook con mensaje accionable, botón "Verificar entorno Outlook" y dry-run que exporta borradores a HTML sin Outlook.
+- M3: rotación de 90 días para reportes `validacion_*.html` y matriz de saneamiento por destino en SECURITY.md.
+- M4: gates de CI — ruff (F,B,E9), bandit (-ll), cobertura informativa, pip-audit no bloqueante, checksum SHA-256 del ejecutable.
+- M5: reloj congelado para toda la suite (`tests/conftest.py` + time-machine) — tests deterministas en cualquier fecha.
+- M6: CLI (`python cli.py procesar|preview|correos`) para operación sin GUI.
+- Correcciones de auditoría: versiones de Actions restauradas (v7/v6/v7), pip-audit no bloqueante, M5 completada (estaba solo declarada).
+
 
 
 ## v9.0.2 — 2026-07-15 — Auditoría de la revision3 aplicada

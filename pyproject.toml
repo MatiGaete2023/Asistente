@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "csmp-asistente-rus"
-version = "9.0.2"
+version = "9.1.0"
 description = "Aplicación local para procesamiento supervisado de planillas RUS"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -32,7 +32,7 @@ dev = [
   "mypy>=1.14,<2",
   "bandit>=1.8,<2",
   "pip-audit>=2.7,<3",
-  "time-machine>=2.16,<3",
+  "time-machine>=2.16,<4",
   "pyinstaller>=6.11,<7",
 ]
 
