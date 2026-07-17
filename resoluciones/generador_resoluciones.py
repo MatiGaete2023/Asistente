@@ -19,7 +19,8 @@ from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
-from motor.utilidades import validar_archivo_excel
+from motor.columnas_comunes import ALIAS_ESPERA, ALIAS_VENCIMIENTO, obtener_col
+from motor.utilidades import es_dce, get_int, validar_archivo_excel
 
 # ─── Fechas ───────────────────────────────────────────────────────────────────
 
@@ -145,8 +146,7 @@ def _titulo_programa(programa: str) -> str:
 
 _PATRON_PC_IE   = ["proyecto de resolucion pidiendo cuenta al programa respecto del ingreso efectivo"]
 _PATRON_PC_INFO = ["que se encuentra vencido en rus desde el"]
-_PATRON_NOMENCL = ["aplica nomenclaturas", "regularizar informaticamente",
-                   "nomenclaturas a fin de regularizar"]
+_PATRON_NOMENCL = ["aplica nomenclaturas", "nomenclaturas a fin de regularizar"]
 
 def detectar_tipo(obs: str) -> str | None:
     n = normalizar(obs)
@@ -156,6 +156,27 @@ def detectar_tipo(obs: str) -> str | None:
         if p in n: return "PC_IE"
     for p in _PATRON_NOMENCL:
         if p in n: return "NOMENCL"
+    return None
+
+
+def _tipo_desde_datos(row, cols: dict, tribunal: str | None) -> str | None:
+    """Determina proyectos desde una planilla de origen sin OBSERVACION.
+
+    Es la misma regla material del motor: una espera de 30 días genera PC_IE
+    en Laja/Mulchén (en Tomé, desde 60); los informes vencidos generan PC_INFO.
+    Los programas DCE solo requieren correo y por ello no generan PC_IE.
+    """
+    programa = str(row.get(cols.get("derivacion"), "")).strip()
+    espera_col = cols.get("espera")
+    espera = get_int(row.get(espera_col)) if espera_col else None
+    if espera is not None and espera >= 30 and not es_dce(programa):
+        if tribunal in ("LAJA", "MULCHEN") or (tribunal == "TOME" and espera >= 60):
+            return "PC_IE"
+
+    vencimiento_col = cols.get("vencimiento")
+    vencimiento = _parse_fecha(row.get(vencimiento_col)) if vencimiento_col else None
+    if vencimiento is not None and vencimiento.date() < datetime.now().date():
+        return "PC_INFO"
     return None
 
 def detectar_tribunal(val: str) -> str | None:
@@ -194,7 +215,11 @@ def _get_col(df, key):
     return None
 
 def _mapear(df):
-    return {k: _get_col(df, k) for k in _COL_ALIASES}
+    cols = {k: _get_col(df, k) for k in _COL_ALIASES}
+    # Campos opcionales requeridos solamente para admitir planillas de origen.
+    cols["espera"] = obtener_col(df, ALIAS_ESPERA)
+    cols["vencimiento"] = obtener_col(df, ALIAS_VENCIMIENTO)
+    return cols
 
 # ─── Helpers formato Word ─────────────────────────────────────────────────────
 
@@ -453,9 +478,10 @@ def generar_resoluciones(ruta_excel: str, ruta_salida: str) -> dict:
         return resultado
 
     cols = _mapear(df)
-    if not cols["observacion"]:
+    if not cols["observacion"] and not (cols["espera"] or cols["vencimiento"]):
         resultado["errores"].append(
-            "Columna OBSERVACION no encontrada. Ejecuta el motor primero."
+            "No se encontró OBSERVACION ni datos para detectar proyectos "
+            "(T ESPERA o FECHA VENCIMIENTO)."
         )
         return resultado
 
@@ -473,13 +499,20 @@ def generar_resoluciones(ruta_excel: str, ruta_salida: str) -> dict:
     primera = True
 
     for idx, row in df.iterrows():
-        obs = str(row.get(cols["observacion"], "")).strip()
-        tipo = detectar_tipo(obs)
-        if not tipo:
-            continue
-
         tribunal_raw = str(row.get(cols["tribunal"] or "", "")).strip()
         tribunal     = detectar_tribunal(tribunal_raw)
+        obs = str(row.get(cols["observacion"], "")).strip() if cols["observacion"] else ""
+        tipo_observacion = detectar_tipo(obs)
+        tipo_datos = _tipo_desde_datos(row, cols, tribunal)
+        # Una nomenclatura genérica no debe ocultar un PC_IE que resulta de
+        # datos objetivos de espera. Esto evita que, al cargar lotes mixtos,
+        # se generen solamente resoluciones de nomenclatura.
+        if tipo_datos == "PC_IE" and tipo_observacion in (None, "NOMENCL"):
+            tipo = tipo_datos
+        else:
+            tipo = tipo_observacion or tipo_datos
+        if not tipo:
+            continue
 
         def valor(key, _row=row):  # bind explícito: evita capturar la variable del loop (B023)
             raw = _row.get(cols[key], "") if cols.get(key) else ""

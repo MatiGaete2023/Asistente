@@ -37,7 +37,13 @@ ALIAS_FICHA_FAE = ["FEC.ACT.F.FAE", "FEC. ACT. F. FAE", "FEC ACT F FAE",
                    "FEC.ACT.F.FAE/FAS", "FEC. ACT. F. FAE/FAS"]
 ALIAS_FICHA_INDIVIDUAL = ["FEC.ACT.F.INDIVIDUAL", "FEC. ACT. F. INDIVIDUAL",
                           "FEC ACT F INDIVIDUAL"]
-TRIBUNAL_DISPLAY = {"LAJA": "Laja", "MULCHEN": "Mulchén", "TOME": "Tomé"}
+# Denominaciones institucionales para comunicaciones dirigidas a programas.
+# No usar las claves abreviadas de RUS en textos que salen del sistema.
+TRIBUNAL_DISPLAY = {
+    "LAJA": "Jgdo. L. y G. de Laja",
+    "MULCHEN": "Jgdo. L. y G. de Mulchen",
+    "TOME": "Juzgado de Familia Tomé",
+}
 
 def obtener_col(df, aliases):
     for c in df.columns:
