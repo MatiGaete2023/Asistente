@@ -75,3 +75,19 @@ def test_tribunal_sin_plantilla_genera_bloque_manual(tmp_path):
 
 def test_fecha_invalida_produce_marcador_completar():
     assert fecha_numerica("no-es-fecha") == "COMPLETAR"
+
+
+def test_resoluciones_desde_archivo_origen_prioriza_pedir_cuenta(tmp_path):
+    """Un lote mixto prioriza T ESPERA para pedir cuenta sobre NOMENCL."""
+    entrada = tmp_path / "origen.xlsx"
+    pd.DataFrame([{
+        "OBSERVACION": "Aplicar nomenclaturas a fin de regularizar",
+        "TRIBUNAL": "MULCHEN", "RIT": "R-ORIGEN", "NOMBRE": "Caso",
+        "RUT": "1-9", "DERIVACION": "PRM", "DURACION": "6 mes(es)",
+        "FEC. RESOLUCIÓN": "01/07/2026", "T ESPERA": 40,
+    }]).to_excel(entrada, index=False)
+
+    resultado = generar_resoluciones(str(entrada), str(tmp_path))
+    assert resultado["total_resoluciones"] == 1
+    texto = "\n".join(p.text for p in Document(resultado["archivo_generado"]).paragraphs)
+    assert "pídase cuenta al programa" in texto

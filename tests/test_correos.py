@@ -83,6 +83,19 @@ def test_procesar_espera_genera_borrador_desde_observacion_motor():
     assert "Lista de espera" in caps[0]["asunto"]
 
 
+def test_procesar_espera_genera_borrador_desde_archivo_origen():
+    """El correo no exige que el archivo haya pasado antes por el motor."""
+    programa = _programa_real()
+    df = pd.DataFrame([{
+        "RIT": "R-ORIGEN", "TRIBUNAL": "LAJA", "RUT": "1-9", "NOMBRE": "Ana Soto",
+        "DERIVACION": programa, "T ESPERA": 40,
+    }])
+    gen, caps = _gen()
+    resultado = gen.procesar_espera(df)
+    assert resultado["borradores_creados"] == 1
+    assert "Jgdo. L. y G. de Laja" in caps[0]["asunto"]
+
+
 def test_espera_sin_patron_no_genera():
     programa = _programa_real()
     df = pd.DataFrame([{

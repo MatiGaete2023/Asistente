@@ -309,7 +309,7 @@ class RUSApp(tk.Tk):
              "Genera 1 borrador por programa+tribunal y estado de vencimiento.",
              self._run_correos_informes),
             ("✉  Lista de espera",
-             "Usa Excel de ESPERA procesado por el motor (con columna OBSERVACION).\n"
+             "Acepta Excel de ESPERA de origen o procesado (T ESPERA >= 30).\n"
              "Genera 1 borrador por programa+tribunal con NNA en espera.",
              self._run_correos_espera),
         ]
@@ -332,7 +332,7 @@ class RUSApp(tk.Tk):
 
     def _build_tab_resoluciones(self, parent):
         ttk.Label(parent,
-                  text="Lee el Excel de salida del motor (con columna OBSERVACION) y genera un Word consolidado.",
+                  text="Acepta Excel de origen o salida del motor y genera un Word consolidado.",
                   font=("Segoe UI", 9), foreground="#666666").pack(anchor="w", pady=(0, 6))
 
         # Entradas
@@ -343,7 +343,7 @@ class RUSApp(tk.Tk):
         self.res_salida_var = tk.StringVar(value=self.cfg.get("ruta_salida_excel", ""))
 
         for i, (lbl, var, es_archivo) in enumerate([
-            ("Excel con OBSERVACION:", self.res_excel_var,  True),
+            ("Excel de casos:", self.res_excel_var,  True),
             ("Carpeta salida .docx:",  self.res_salida_var, False),
         ]):
             ttk.Label(inp, text=lbl, width=22, anchor="w").grid(row=i, column=0, sticky="w", pady=2)
@@ -855,7 +855,7 @@ class RUSApp(tk.Tk):
         excel  = self.res_excel_var.get().strip()
         salida = self.res_salida_var.get().strip()
         if not excel:
-            messagebox.showerror("Falta archivo", "Selecciona el Excel con columna OBSERVACION.")
+            messagebox.showerror("Falta archivo", "Selecciona el Excel de casos.")
             return
         if not salida:
             messagebox.showerror("Falta carpeta", "Selecciona la carpeta de salida.")

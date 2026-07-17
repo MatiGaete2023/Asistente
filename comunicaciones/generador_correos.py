@@ -329,9 +329,10 @@ class GeneradorCorreos:
 
     def procesar_espera(self, df: pd.DataFrame) -> dict:
         """
-        Excel ESPERA (salida del motor con columna OBSERVACION).
+        Excel ESPERA, procesado o de origen.
         Genera borrador tipo D: 1 por PROGRAMA+TRIBUNAL donde OBSERVACION
-        contiene el patrón de lista de espera.
+        contiene el patrón de lista de espera. Si no existe OBSERVACION, aplica
+        directamente el mismo umbral de ESPERA (T ESPERA >= 30).
         Cols: RIT, TRIBUNAL, RUT, NOMBRE, DERIVACIÓN, T ESPERA, OBSERVACION.
         """
         resultado = self._vacio()
@@ -351,12 +352,6 @@ class GeneradorCorreos:
                      ("T ESPERA", col_espera)] if not c]
         if faltantes:
             resultado["errores"].append(f"Columnas no encontradas: {faltantes}")
-            return resultado
-
-        if not col_obs:
-            resultado["errores"].append(
-                "Columna OBSERVACION no encontrada. Procesa primero con el motor (ESPERA)."
-            )
             return resultado
 
         # Degradación suave (D9): filas defectuosas fuera con aviso, el resto
@@ -390,15 +385,26 @@ class GeneradorCorreos:
             if df.empty:
                 return resultado
 
-        # Filtrar por observación
-        df_filtrado = df[df[col_obs].apply(
-            lambda obs: PATRON_ESPERA in normalizar(obs)
-        )].copy()
+        # Un archivo de origen también es válido: con T ESPERA suficiente el
+        # motor habría producido E-05, que es precisamente el criterio para
+        # este correo. Una OBSERVACION existente conserva prioridad para no
+        # incluir filas que el motor ya descartó por alguna regla especial.
+        if col_obs:
+            df_filtrado = df[df[col_obs].apply(
+                lambda obs: PATRON_ESPERA in normalizar(obs)
+            )].copy()
+        else:
+            df_filtrado = df[df[col_espera].apply(
+                lambda valor: self._entero_no_negativo(valor) >= 30
+            )].copy()
+            # El motor omite E-05 cuando no puede identificar el tribunal.
+            df_filtrado = df_filtrado[df_filtrado[col_trib].apply(
+                lambda valor: detectar_tribunal(valor) is not None
+            )].copy()
 
         if df_filtrado.empty:
             resultado["errores"].append(
-                "No hay filas con observación de lista de espera. "
-                "Procesa primero con el motor (ESPERA)."
+                "No hay filas elegibles para correo de lista de espera."
             )
             return resultado
 
